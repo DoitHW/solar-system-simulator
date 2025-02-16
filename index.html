@@ -41,10 +41,17 @@
           transform: translateX(-50%);
           z-index: 1100;
           display: flex;
-          gap: 20px;
+          flex-direction: column;
+          gap: 10px;
           background: rgba(0,0,0,0.7);
           padding: 5px 10px;
           border-radius: 5px;
+      }
+      /* Div para mostrar el tiempo simulado */
+      #simTimeDisplay {
+          color: #fff;
+          font-size: 0.9em;
+          text-align: center;
       }
       #globalActions {
           position: fixed;
@@ -127,10 +134,10 @@
       button:hover {
           background: #45a049;
       }
-      /* Ventana única de información a la derecha */
+      /* Ventana de información; se sitúa en la parte superior derecha pero más abajo */
       #infoWindow {
           position: fixed;
-          top: 20px;
+          top: 100px;
           right: 20px;
           width: 300px;
           background: rgba(0,0,0,0.8);
@@ -197,6 +204,21 @@
           border-radius: 5px;
           margin-top: 10px;
       }
+      /* Botón para resetear todos los planetas */
+      #resetAllButton {
+          background: #E53935;
+          color: white;
+          border: none;
+          padding: 10px 15px;
+          margin: 5px 0;
+          border-radius: 5px;
+          cursor: pointer;
+          transition: background 0.3s;
+          width: 100%;
+      }
+      #resetAllButton:hover {
+          background: #d32f2f;
+      }
       
       @media (max-width: 600px) {
           #controls {
@@ -223,8 +245,9 @@
   <div id="globalParameters">
       <label style="display: flex; align-items: center; gap: 5px; color: #fff;">
           <span>⏱ Escala de Tiempo: <span id="timeScaleValue">1</span></span>
-          <input type="range" id="timeScale" min="0.01" max="100" step="0.1" value="1" style="width:150px;">
+          <input type="range" id="timeScale" min="0.01" max="1000" step="0.1" value="1" style="width:150px;">
       </label>
+      <div id="simTimeDisplay">Tiempo transcurrido: 0 años, 0 días, 0 horas, 0 minutos, 0 segundos</div>
       <label style="display: flex; align-items: center; gap: 5px; color: #fff;">
           <span>𝐺:</span>
           <input type="number" id="gravitationalConstant" min="1e-12" max="1e-10" step="1e-13" value="6.67430e-11" style="width:150px;">
@@ -247,10 +270,14 @@
               <input type="number" id="sunDensity" value="1408" step="1" onkeydown="if(event.key==='Enter') updateSunProperties()">
           </label>
           <button onclick="updateSunProperties()">Actualizar Sol</button>
+          <!-- Botón para enfocar el Sol -->
+          <button onclick="focusOnSun()" title="Foco en el Sol">👁️</button>
       </div>
       <div class="control-group">
           <h2>Control de Planetas</h2>
           <div id="planetControls"></div>
+          <!-- Botón para reiniciar los valores por defecto de TODOS los planetas -->
+          <button id="resetAllButton" onclick="resetDefaultsAll()">Resetear todos</button>
       </div>
       <div class="add-planet">
           <h2>Agregar Planeta</h2>
@@ -281,6 +308,63 @@
   </div>
   <div id="planetInfo"></div>
   <script>
+      // Variable global para acumular el tiempo simulado (en segundos)
+      let simulationTime = 0;
+      
+      // Función para convertir segundos a años, días, horas, minutos y segundos
+      function formatSimTime(seconds) {
+          const secondsPerYear = 86400 * 365;
+          const secondsPerDay = 86400;
+          const secondsPerHour = 3600;
+          const secondsPerMinute = 60;
+          let years = Math.floor(seconds / secondsPerYear);
+          let rem = seconds % secondsPerYear;
+          let days = Math.floor(rem / secondsPerDay);
+          rem %= secondsPerDay;
+          let hours = Math.floor(rem / secondsPerHour);
+          rem %= secondsPerHour;
+          let minutes = Math.floor(rem / secondsPerMinute);
+          let secs = Math.floor(rem % secondsPerMinute);
+          return `${years} años, ${days} días, ${hours} horas, ${minutes} minutos, ${secs} segundos`;
+      }
+      
+      function updateSimTimeDisplay() {
+          document.getElementById("simTimeDisplay").innerText = "Tiempo transcurrido: " + formatSimTime(simulationTime);
+      }
+            function toggleControls() {
+          let controlsDiv = document.getElementById("controls");
+          let toggleBtn = document.getElementById("toggleControls");
+          if (controlsDiv.classList.contains("hidden")) {
+              controlsDiv.classList.remove("hidden");
+              toggleBtn.innerText = "⬅";
+          } else {
+              controlsDiv.classList.add("hidden");
+              toggleBtn.innerText = "➡";
+          }
+      }
+      // Función getTemperature (definida antes de su uso) – calcula la temperatura en función de la distancia actual al sol
+      function getTemperature(p) {
+          if (p.mesh === sun) return "5778 K";
+          let currentDistance_m = p.mesh.position.length() * distanceScale;
+          let currentDistance_km = currentDistance_m / 1000;
+          let d_AU = currentDistance_km / 149600000;
+          let T = 288 * Math.pow(1/d_AU, 0.5) - 273;
+          return T.toFixed(1) + " °C";
+      }
+      function toggleControls() {
+    let controlsDiv = document.getElementById("controls");
+    if (controlsDiv.classList.contains("hidden")) {
+         controlsDiv.classList.remove("hidden");
+    } else {
+         controlsDiv.classList.add("hidden");
+    }
+}
+window.toggleControls = toggleControls;
+
+      // Asignamos funciones al ámbito global para ser llamadas desde el HTML
+      window.toggleControls = toggleControls;
+      window.focusOnPlanet = focusOnPlanet;
+      
       // Texturas para planetas conocidos
       const planetTextures = {
           "Mercurio": "8k_mercury.jpg",
@@ -299,7 +383,7 @@
           "4k_eris_fictional.jpg"
       ];
       
-      // Datos base de planetas (rotationSpeed se define en radianes/segundo real)
+      // Datos base de planetas (rotationSpeed en radianes/segundo real)
       let planetDataGlobal = [
           { name: "Mercurio", radius: 2439.7, density: 5427,  distance: 57.9e6,  inclination: 7,    longitude: 0,   rotationSpeed: 2*Math.PI/1407.6 },
           { name: "Venus",    radius: 6051.8, density: 5243,  distance: 108.2e6, inclination: 3.4,  longitude: 45,  rotationSpeed: 2*Math.PI/5832.5 },
@@ -365,10 +449,17 @@
           window.addEventListener("resize", onWindowResize, false);
           window.addEventListener("keydown", onKeyDown, false);
   
+          // Reiniciamos el contador de tiempo simulado
+          simulationTime = 0;
+          updateSimTimeDisplay();
+  
           createSolarSystem();
           animate();
   
           renderer.domElement.addEventListener('click', onDocumentMouseDown, false);
+  
+          // Actualizamos el tiempo simulado cada 1000 ms (1 segundo real)
+          setInterval(updateSimTimeDisplay, 1000);
       }
       
       function createSolarSystem() {
@@ -430,12 +521,11 @@
           const textureLoader = new THREE.TextureLoader();
           
           if(data.name === "Tierra") {
-              // Shader para la Tierra: muestra textura diurna en la mitad que mira al sol y nocturna en la opuesta.
+              // Shader para la Tierra: muestra la textura diurna en la mitad que mira al sol y nocturna en la opuesta.
               let dayTexture = textureLoader.load('textures/8k_earth_daymap.jpg');
               dayTexture.format = THREE.RGBFormat;
               let nightTexture = textureLoader.load('textures/8k_earth_nightmap.jpg');
               nightTexture.format = THREE.RGBFormat;
-              // Dirección inicial: desde la Tierra hacia el sol (en espacio local)
               let localLightDir = new THREE.Vector3().subVectors(sun.position, pos).normalize();
               let earthUniforms = {
                   mapDay: { value: dayTexture },
@@ -547,6 +637,15 @@
               let ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
               planet.add(ringMesh);
           }
+      }
+      
+      // Función para resetear TODOS los planetas a sus valores por defecto y reiniciar el tiempo simulado
+      function resetDefaultsAll() {
+          for (let i = 0; i < defaultPlanetData.length; i++) {
+              resetDefaultsPlanet(i);
+          }
+          simulationTime = 0;
+          updateSimTimeDisplay();
       }
       
       function updatePlanetControlsUI() {
@@ -729,7 +828,20 @@
           sun.geometry = new THREE.SphereGeometry(visualSunRadius, 64, 64);
       }
       
-      // Al hacer clic sobre un planeta se actúa como si se pulsara el icono de "foco"
+      // Si se hace clic sobre el sol, se anima la cámara para enfocarlo y se actualiza la info
+      function focusOnSun() {
+          focusedPlanet = { mesh: sun, data: { temperature: "5778 K" } };
+          new TWEEN.Tween(camera.position)
+              .to({ x: sun.position.x + 50, y: sun.position.y + 50, z: sun.position.z + 50 }, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
+          new TWEEN.Tween(controls.target)
+              .to(sun.position, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
+      }
+      
+      // Al hacer clic sobre un objeto, se anima el enfoque sobre él (sol o planeta)
       function onDocumentMouseDown(event) {
           event.preventDefault();
           let mouse = new THREE.Vector2();
@@ -739,9 +851,16 @@
           let raycaster = new THREE.Raycaster();
           raycaster.setFromCamera(mouse, camera);
   
-          let intersects = raycaster.intersectObjects(planets.map(p => p.mesh));
+          let objects = planets.map(p => p.mesh);
+          objects.push(sun);
+          let intersects = raycaster.intersectObjects(objects);
           if (intersects.length > 0) {
               let clickedMesh = intersects[0].object;
+              if(clickedMesh === sun) {
+                  focusOnSun();
+                  updateFocusedInfoWindow();
+                  return;
+              }
               let index = planets.findIndex(p => p.mesh === clickedMesh);
               if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
@@ -765,7 +884,23 @@
           }
       }
       
-      // Se actualiza la infoWindow cada 1000 ms
+      // Usamos el clock para obtener delta (segundos reales entre frames)
+      function animate() {
+          requestAnimationFrame(animate);
+          let delta = clock.getDelta();
+          updatePlanets(delta);
+          TWEEN.update();
+          controls.update();
+          if (sun) {
+              sun.rotation.y += 0.001;
+          }
+          renderer.render(scene, camera);
+      }
+      
+      function pauseSimulation() { paused = true; }
+      function resumeSimulation() { paused = false; }
+      
+      // La infoWindow se actualiza cada 1000 ms (1 segundo real)
       setInterval(() => {
           if (focusedPlanet && focusedPlanet.mesh) {
               updateFocusedInfoWindow();
@@ -786,6 +921,8 @@
           let rotationSpeed = container && container.data.rotationSpeed !== undefined ? container.data.rotationSpeed.toExponential(2) : "N/A";
           let inclination = container ? container.data.inclination.toFixed(2) : "N/A";
           let velocityReal = container ? (container.velocity.length() * distanceScale / 1000).toFixed(2) : "N/A";
+          let temperature = (mesh === sun) ? "5778 K" : getTemperature(container);
+          let simTimeFormatted = formatSimTime(simulationTime);
           infoDiv.innerHTML = `
              <button class="closeBtn" onclick="closeInfoWindow()">X</button>
              <h3>${mesh.name}</h3>
@@ -796,6 +933,8 @@
              <p>Velocidad orbital: ${velocityReal} km/s</p>
              <p>Inclinación: ${inclination} °</p>
              <p>Rotación: ${rotationSpeed} rad/s</p>
+             <p>Temperatura: ${temperature}</p>
+             <p>Tiempo simulado: ${simTimeFormatted}</p>
           `;
       }
       
@@ -803,14 +942,27 @@
           document.getElementById("infoWindow").style.display = "none";
       }
       
-      // Al hacer foco en un planeta, sólo actualizamos el centro de rotación
+      // Al hacer foco en un planeta, se anima la cámara para posicionarse a una distancia óptima sin forzar el zoom
       function focusOnPlanet(index) {
           focusedPlanet = planets[index];
           if(!focusedPlanet || !focusedPlanet.mesh) return;
-          controls.target.copy(focusedPlanet.mesh.position);
+          let visualRadius = focusedPlanet.mesh.geometry.parameters.radius * focusedPlanet.mesh.scale.x;
+          let offset = new THREE.Vector3(0, visualRadius, visualRadius * 3);
+          new TWEEN.Tween(camera.position)
+              .to({ 
+                  x: focusedPlanet.mesh.position.x + offset.x, 
+                  y: focusedPlanet.mesh.position.y + offset.y, 
+                  z: focusedPlanet.mesh.position.z + offset.z 
+              }, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
+          new TWEEN.Tween(controls.target)
+              .to(focusedPlanet.mesh.position, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
       }
       
-      // updatePlanets utiliza delta real (segundos entre frames). dt para órbitas se define como delta * timeScale * 86400.
+      // updatePlanets usa delta real y calcula dt para órbitas en segundos simulados (delta * timeScale * 86400)
       function updatePlanets(delta) {
           if (paused) return;
           let ts = document.getElementById("timeScale").value;
@@ -819,8 +971,9 @@
   
           G = parseFloat(document.getElementById("gravitationalConstant").value);
   
-          // dt para la dinámica orbital (simulación de órbitas): escalamos en segundos de simulación
           let dt = delta * timeScale * 86400;
+          // Incrementamos el tiempo simulado
+          simulationTime += dt;
           
           planets.forEach((p, index) => {
               if(!p || !p.mesh) return;
@@ -851,227 +1004,7 @@
               p.trail.geometry.setFromPoints(p.trail.points);
           });
   
-          // Auto-rotación: se actualiza usando delta real y la velocidad de rotación (en rad/s)
-          planets.forEach(p => {
-              if(p.data.rotationSpeed !== undefined) {
-                  p.mesh.rotation.y += p.data.rotationSpeed * delta * timeScale;
-              }
-          });
-  
-          // Actualizamos la dirección de la luz para la Tierra: convertimos la dirección (del sol a la Tierra) al espacio local
-          planets.forEach(p => {
-              if(p && p.mesh && p.mesh.name === "Tierra" && p.mesh.material.uniforms) {
-                  let worldLightDir = new THREE.Vector3().subVectors(sun.position, p.mesh.position).normalize();
-                  let localLightDir = worldLightDir.clone().applyQuaternion(p.mesh.quaternion.clone().invert());
-                  p.mesh.material.uniforms.lightDirection.value = localLightDir;
-              }
-          });
-  
-          if(focusedPlanet && focusedPlanet.mesh) {
-              controls.target.copy(focusedPlanet.mesh.position);
-          }
-      }
-      
-      function fitAllPlanets() {
-          if (planets.length === 0) return;
-          let maxDistance = 0;
-          planets.forEach(p => {
-              if(p && p.mesh) {
-                  let d = p.mesh.position.length();
-                  if (d > maxDistance) maxDistance = d;
-              }
-          });
-          let height = maxDistance * 1.5;
-          camera.far = height * 4;
-          camera.updateProjectionMatrix();
-  
-          new TWEEN.Tween(camera.position)
-              .to({ x: 0, y: height, z: height }, 1000)
-              .easing(TWEEN.Easing.Cubic.InOut)
-              .start();
-          new TWEEN.Tween(controls.target)
-              .to({ x: 0, y: 0, z: 0 }, 1000)
-              .easing(TWEEN.Easing.Cubic.InOut)
-              .start();
-          viewMode = "cenital";
-      }
-      
-      function resetSimulation() {
-          planets.forEach((p, index) => {
-              if(p && p.mesh) {
-                  p.mesh.position.copy(p.initialPosition);
-                  p.velocity.copy(p.initialVelocity);
-                  p.trail.points = [];
-                  p.trail.geometry.setFromPoints([]);
-              }
-          });
-          focusedPlanet = null;
-          if (viewMode !== "cenital") {
-              resetCamera();
-          }
-          closeInfoWindow();
-      }
-      
-      function resetCamera() {
-          new TWEEN.Tween(camera.position)
-              .to({ x: 0, y: 150, z: 300 }, 1000)
-              .easing(TWEEN.Easing.Cubic.InOut)
-              .start();
-          new TWEEN.Tween(controls.target)
-              .to({ x: 0, y: 0, z: 0 }, 1000)
-              .easing(TWEEN.Easing.Cubic.InOut)
-              .start();
-          viewMode = "normal";
-      }
-      
-      function resetDefaultsPlanet(index) {
-          let defaultData = defaultPlanetData[index];
-          let p = planets[index];
-          if(!p || !p.mesh) return;
-          p.data.radius = defaultData.radius;
-          p.data.density = defaultData.density;
-          p.data.distance = defaultData.distance;
-          p.data.inclination = defaultData.inclination;
-          p.data.longitude = defaultData.longitude;
-          planetDataGlobal[index] = Object.assign({}, defaultData);
-          document.getElementById(`radius${index}`).value = defaultData.radius;
-          document.getElementById(`density${index}`).value = defaultData.density;
-          document.getElementById(`distance${index}`).value = defaultData.distance;
-          document.getElementById(`inclination${index}`).value = defaultData.inclination;
-          document.getElementById(`longitude${index}`).value = defaultData.longitude;
-          updatePlanetProperties(index);
-          p.initialPosition.copy(p.mesh.position);
-          p.initialVelocity.copy(p.velocity);
-      }
-      
-      function onWindowResize() {
-          camera.aspect = window.innerWidth / window.innerHeight;
-          camera.updateProjectionMatrix();
-          renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-      
-      function onDocumentMouseDown(event) {
-          event.preventDefault();
-          let mouse = new THREE.Vector2();
-          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-  
-          let raycaster = new THREE.Raycaster();
-          raycaster.setFromCamera(mouse, camera);
-  
-          let intersects = raycaster.intersectObjects(planets.map(p => p.mesh));
-          if (intersects.length > 0) {
-              let clickedMesh = intersects[0].object;
-              let index = planets.findIndex(p => p.mesh === clickedMesh);
-              if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
-                  updateFocusedInfoWindow();
-                  return;
-              }
-              if(index >= 0) {
-                  focusOnPlanet(index);
-                  updateFocusedInfoWindow();
-              }
-          } else {
-              closeInfoWindow();
-          }
-      }
-      
-      function onKeyDown(event) {
-          if (event.key === "Escape") {
-              focusedPlanet = null;
-              viewMode = "normal";
-              resetCamera();
-              closeInfoWindow();
-          }
-      }
-      
-      // La infoWindow se actualiza cada 1000 ms
-      setInterval(() => {
-          if (focusedPlanet && focusedPlanet.mesh) {
-              updateFocusedInfoWindow();
-          }
-      }, 1000);
-      
-      function updateFocusedInfoWindow() {
-          let infoDiv = document.getElementById("infoWindow");
-          if (!focusedPlanet || !focusedPlanet.mesh) {
-              infoDiv.style.display = "none";
-              return;
-          }
-          infoDiv.style.display = "block";
-          let mesh = focusedPlanet.mesh;
-          let distanceReal = ((mesh.position.length() * distanceScale) / 1000).toFixed(2);
-          let radiusReal = mesh.radiusKm.toFixed(2);
-          let container = planets.find(p => p.mesh === mesh);
-          let rotationSpeed = container && container.data.rotationSpeed !== undefined ? container.data.rotationSpeed.toExponential(2) : "N/A";
-          let inclination = container ? container.data.inclination.toFixed(2) : "N/A";
-          let velocityReal = container ? (container.velocity.length() * distanceScale / 1000).toFixed(2) : "N/A";
-          infoDiv.innerHTML = `
-             <button class="closeBtn" onclick="closeInfoWindow()">X</button>
-             <h3>${mesh.name}</h3>
-             <p>Masa: ${mesh.mass.toExponential(2)} kg</p>
-             <p>Radio: ${radiusReal} km</p>
-             <p>Densidad: ${mesh.density ? mesh.density.toFixed(0) : "N/A"} kg/m³</p>
-             <p>Distancia al Sol: ${distanceReal} km</p>
-             <p>Velocidad orbital: ${velocityReal} km/s</p>
-             <p>Inclinación: ${inclination} °</p>
-             <p>Rotación: ${rotationSpeed} rad/s</p>
-          `;
-      }
-      
-      function closeInfoWindow() {
-          document.getElementById("infoWindow").style.display = "none";
-      }
-      
-      // Al hacer foco en un planeta, actualizamos solo el centro de rotación (sin mover la cámara)
-      function focusOnPlanet(index) {
-          focusedPlanet = planets[index];
-          if(!focusedPlanet || !focusedPlanet.mesh) return;
-          controls.target.copy(focusedPlanet.mesh.position);
-      }
-      
-      // updatePlanets usa delta (segundos reales) y calcula dt para órbitas en segundos simulados (delta * timeScale * 86400)
-      function updatePlanets(delta) {
-          if (paused) return;
-          let ts = document.getElementById("timeScale").value;
-          timeScale = parseFloat(ts);
-          document.getElementById("timeScaleValue").innerText = timeScale;
-  
-          G = parseFloat(document.getElementById("gravitationalConstant").value);
-  
-          // dt para las órbitas: delta * timeScale * 86400 (para simular el paso de un día real)
-          let dt = delta * timeScale * 86400;
-          
-          planets.forEach((p, index) => {
-              if(!p || !p.mesh) return;
-              let totalForce = new THREE.Vector3(0, 0, 0);
-  
-              let sunDirection = new THREE.Vector3().subVectors(sun.position, p.mesh.position);
-              let sunDistance = sunDirection.length() * distanceScale;
-              let sunForce = sunDirection.normalize().multiplyScalar(G * sun.mass * p.mesh.mass / (sunDistance * sunDistance));
-              totalForce.add(sunForce);
-  
-              planets.forEach((otherP, otherIndex) => {
-                  if (index !== otherIndex && otherP && otherP.mesh) {
-                      let direction = new THREE.Vector3().subVectors(otherP.mesh.position, p.mesh.position);
-                      let distance = direction.length() * distanceScale;
-                      let force = direction.normalize().multiplyScalar(G * otherP.mesh.mass * p.mesh.mass / (distance * distance));
-                      totalForce.add(force);
-                  }
-              });
-  
-              let acceleration = totalForce.divideScalar(p.mesh.mass);
-              let accelerationVisual = acceleration.divideScalar(distanceScale);
-  
-              p.velocity.add(accelerationVisual.multiplyScalar(dt));
-              p.mesh.position.add(p.velocity.clone().multiplyScalar(dt));
-  
-              p.trail.points.push(p.mesh.position.clone());
-              if (p.trail.points.length > 1000) p.trail.points.shift();
-              p.trail.geometry.setFromPoints(p.trail.points);
-          });
-  
-          // Auto-rotación: se actualiza usando delta real * timeScale para cada planeta
+          // Auto-rotación: se actualiza usando delta real * timeScale
           planets.forEach(p => {
               if(p.data.rotationSpeed !== undefined) {
                   p.mesh.rotation.y += p.data.rotationSpeed * delta * timeScale;
@@ -1126,6 +1059,8 @@
               }
           });
           focusedPlanet = null;
+          simulationTime = 0;
+          updateSimTimeDisplay();
           if (viewMode !== "cenital") {
               resetCamera();
           }
@@ -1179,9 +1114,16 @@
           let raycaster = new THREE.Raycaster();
           raycaster.setFromCamera(mouse, camera);
   
-          let intersects = raycaster.intersectObjects(planets.map(p => p.mesh));
+          let objects = planets.map(p => p.mesh);
+          objects.push(sun);
+          let intersects = raycaster.intersectObjects(objects);
           if (intersects.length > 0) {
               let clickedMesh = intersects[0].object;
+              if(clickedMesh === sun) {
+                  focusOnSun();
+                  updateFocusedInfoWindow();
+                  return;
+              }
               let index = planets.findIndex(p => p.mesh === clickedMesh);
               if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
@@ -1205,7 +1147,7 @@
           }
       }
       
-      // Usamos el clock para obtener delta en segundos reales entre frames
+      // Usamos el clock para obtener delta (segundos reales entre frames)
       function animate() {
           requestAnimationFrame(animate);
           let delta = clock.getDelta();
