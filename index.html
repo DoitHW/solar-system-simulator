@@ -308,6 +308,20 @@
   </div>
   <div id="planetInfo"></div>
   <script>
+      // Variables globales
+      let infoWindowClosed = false; // Se activa cuando se presiona X y se mantiene hasta un nuevo foco
+      let isDragging = false; // Para detectar arrastre en la cámara
+
+      // Definir la función toggleControls de forma global
+      function toggleControls() {
+          let controlsDiv = document.getElementById("controls");
+          if (controlsDiv.classList.contains("hidden")) {
+              controlsDiv.classList.remove("hidden");
+          } else {
+              controlsDiv.classList.add("hidden");
+          }
+      }
+      
       // Variable global para acumular el tiempo simulado (en segundos)
       let simulationTime = 0;
       
@@ -331,18 +345,8 @@
       function updateSimTimeDisplay() {
           document.getElementById("simTimeDisplay").innerText = "Tiempo transcurrido: " + formatSimTime(simulationTime);
       }
-            function toggleControls() {
-          let controlsDiv = document.getElementById("controls");
-          let toggleBtn = document.getElementById("toggleControls");
-          if (controlsDiv.classList.contains("hidden")) {
-              controlsDiv.classList.remove("hidden");
-              toggleBtn.innerText = "⬅";
-          } else {
-              controlsDiv.classList.add("hidden");
-              toggleBtn.innerText = "➡";
-          }
-      }
-      // Función getTemperature (definida antes de su uso) – calcula la temperatura en función de la distancia actual al sol
+      
+      // Función getTemperature (definida globalmente)
       function getTemperature(p) {
           if (p.mesh === sun) return "5778 K";
           let currentDistance_m = p.mesh.position.length() * distanceScale;
@@ -351,16 +355,7 @@
           let T = 288 * Math.pow(1/d_AU, 0.5) - 273;
           return T.toFixed(1) + " °C";
       }
-      function toggleControls() {
-    let controlsDiv = document.getElementById("controls");
-    if (controlsDiv.classList.contains("hidden")) {
-         controlsDiv.classList.remove("hidden");
-    } else {
-         controlsDiv.classList.add("hidden");
-    }
-}
-window.toggleControls = toggleControls;
-
+      
       // Asignamos funciones al ámbito global para ser llamadas desde el HTML
       window.toggleControls = toggleControls;
       window.focusOnPlanet = focusOnPlanet;
@@ -435,6 +430,13 @@ window.toggleControls = toggleControls;
           controls.dampingFactor = 0.05;
           controls.rotateSpeed = 0.5;
           controls.minDistance = 10;
+          // Eventos para detectar arrastre
+          controls.addEventListener('start', () => { isDragging = true; });
+          controls.addEventListener('end', () => { 
+              isDragging = false; 
+              // Si se ha enfocado previamente y la infoWindow no se cerró manualmente, se actualiza
+              updateFocusedInfoWindow(); 
+          });
           controls.addEventListener('change', function() {
               if(focusedPlanet) {
                   controls.target.copy(focusedPlanet.mesh.position);
@@ -449,7 +451,6 @@ window.toggleControls = toggleControls;
           window.addEventListener("resize", onWindowResize, false);
           window.addEventListener("keydown", onKeyDown, false);
   
-          // Reiniciamos el contador de tiempo simulado
           simulationTime = 0;
           updateSimTimeDisplay();
   
@@ -458,7 +459,6 @@ window.toggleControls = toggleControls;
   
           renderer.domElement.addEventListener('click', onDocumentMouseDown, false);
   
-          // Actualizamos el tiempo simulado cada 1000 ms (1 segundo real)
           setInterval(updateSimTimeDisplay, 1000);
       }
       
@@ -521,7 +521,6 @@ window.toggleControls = toggleControls;
           const textureLoader = new THREE.TextureLoader();
           
           if(data.name === "Tierra") {
-              // Shader para la Tierra: muestra la textura diurna en la mitad que mira al sol y nocturna en la opuesta.
               let dayTexture = textureLoader.load('textures/8k_earth_daymap.jpg');
               dayTexture.format = THREE.RGBFormat;
               let nightTexture = textureLoader.load('textures/8k_earth_nightmap.jpg');
@@ -639,7 +638,7 @@ window.toggleControls = toggleControls;
           }
       }
       
-      // Función para resetear TODOS los planetas a sus valores por defecto y reiniciar el tiempo simulado
+      // Función para resetear TODOS los planetas a sus valores por defecto y reiniciar el contador de tiempo
       function resetDefaultsAll() {
           for (let i = 0; i < defaultPlanetData.length; i++) {
               resetDefaultsPlanet(i);
@@ -831,6 +830,7 @@ window.toggleControls = toggleControls;
       // Si se hace clic sobre el sol, se anima la cámara para enfocarlo y se actualiza la info
       function focusOnSun() {
           focusedPlanet = { mesh: sun, data: { temperature: "5778 K" } };
+          infoWindowClosed = false; // Se reabre la info al enfocar un nuevo objeto
           new TWEEN.Tween(camera.position)
               .to({ x: sun.position.x + 50, y: sun.position.y + 50, z: sun.position.z + 50 }, 1000)
               .easing(TWEEN.Easing.Cubic.InOut)
@@ -843,6 +843,8 @@ window.toggleControls = toggleControls;
       
       // Al hacer clic sobre un objeto, se anima el enfoque sobre él (sol o planeta)
       function onDocumentMouseDown(event) {
+          // Si se está arrastrando, no procesamos el clic
+          if(isDragging) return;
           event.preventDefault();
           let mouse = new THREE.Vector2();
           mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -862,6 +864,7 @@ window.toggleControls = toggleControls;
                   return;
               }
               let index = planets.findIndex(p => p.mesh === clickedMesh);
+              // Si se hace clic sobre el mismo objeto en foco, se actualiza la info
               if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
                   return;
@@ -871,7 +874,8 @@ window.toggleControls = toggleControls;
                   updateFocusedInfoWindow();
               }
           } else {
-              closeInfoWindow();
+              // Si se hace clic en espacio vacío, no se oculta la tarjeta si ya está activa
+              // closeInfoWindow();  <-- Se elimina para que la infoWindow permanezca si está activa
           }
       }
       
@@ -909,7 +913,8 @@ window.toggleControls = toggleControls;
       
       function updateFocusedInfoWindow() {
           let infoDiv = document.getElementById("infoWindow");
-          if (!focusedPlanet || !focusedPlanet.mesh) {
+          // Si no hay foco o se ha cerrado manualmente, no se muestra la info
+          if (!focusedPlanet || !focusedPlanet.mesh || infoWindowClosed) {
               infoDiv.style.display = "none";
               return;
           }
@@ -939,6 +944,7 @@ window.toggleControls = toggleControls;
       }
       
       function closeInfoWindow() {
+          infoWindowClosed = true;
           document.getElementById("infoWindow").style.display = "none";
       }
       
@@ -946,6 +952,7 @@ window.toggleControls = toggleControls;
       function focusOnPlanet(index) {
           focusedPlanet = planets[index];
           if(!focusedPlanet || !focusedPlanet.mesh) return;
+          infoWindowClosed = false; // Se reabre la info al enfocar un nuevo objeto
           let visualRadius = focusedPlanet.mesh.geometry.parameters.radius * focusedPlanet.mesh.scale.x;
           let offset = new THREE.Vector3(0, visualRadius, visualRadius * 3);
           new TWEEN.Tween(camera.position)
@@ -972,7 +979,6 @@ window.toggleControls = toggleControls;
           G = parseFloat(document.getElementById("gravitationalConstant").value);
   
           let dt = delta * timeScale * 86400;
-          // Incrementamos el tiempo simulado
           simulationTime += dt;
           
           planets.forEach((p, index) => {
@@ -1104,64 +1110,6 @@ window.toggleControls = toggleControls;
           camera.updateProjectionMatrix();
           renderer.setSize(window.innerWidth, window.innerHeight);
       }
-      
-      function onDocumentMouseDown(event) {
-          event.preventDefault();
-          let mouse = new THREE.Vector2();
-          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-  
-          let raycaster = new THREE.Raycaster();
-          raycaster.setFromCamera(mouse, camera);
-  
-          let objects = planets.map(p => p.mesh);
-          objects.push(sun);
-          let intersects = raycaster.intersectObjects(objects);
-          if (intersects.length > 0) {
-              let clickedMesh = intersects[0].object;
-              if(clickedMesh === sun) {
-                  focusOnSun();
-                  updateFocusedInfoWindow();
-                  return;
-              }
-              let index = planets.findIndex(p => p.mesh === clickedMesh);
-              if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
-                  updateFocusedInfoWindow();
-                  return;
-              }
-              if(index >= 0) {
-                  focusOnPlanet(index);
-                  updateFocusedInfoWindow();
-              }
-          } else {
-              closeInfoWindow();
-          }
-      }
-      
-      function onKeyDown(event) {
-          if (event.key === "Escape") {
-              focusedPlanet = null;
-              viewMode = "normal";
-              resetCamera();
-              closeInfoWindow();
-          }
-      }
-      
-      // Usamos el clock para obtener delta (segundos reales entre frames)
-      function animate() {
-          requestAnimationFrame(animate);
-          let delta = clock.getDelta();
-          updatePlanets(delta);
-          TWEEN.update();
-          controls.update();
-          if (sun) {
-              sun.rotation.y += 0.001;
-          }
-          renderer.render(scene, camera);
-      }
-      
-      function pauseSimulation() { paused = true; }
-      function resumeSimulation() { paused = false; }
       
       init();
       animate();
