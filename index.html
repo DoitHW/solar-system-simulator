@@ -47,7 +47,7 @@
           padding: 5px 10px;
           border-radius: 5px;
       }
-      /* Div para mostrar el tiempo simulado */
+      /* Div para mostrar el tiempo transcurrido en formato terrestre */
       #simTimeDisplay {
           color: #fff;
           font-size: 0.9em;
@@ -139,14 +139,16 @@
           position: fixed;
           top: 100px;
           right: 20px;
-          width: 300px;
+          width: 320px; /* Ancho aumentado */
+          min-height: 350px; /* Altura mínima fija */
           background: rgba(0,0,0,0.8);
           border: 1px solid #4CAF50;
           border-radius: 10px;
           padding: 15px;
           color: #fff;
           z-index: 1200;
-          display: none;
+          overflow-y: auto;
+          display: none; /* Inicia oculto */
       }
       #infoWindow h3 {
           margin-top: 0;
@@ -220,6 +222,47 @@
           background: #d32f2f;
       }
       
+      /* Estilos para el slider de escala de tiempo y sus botones */
+      #timeScale {
+          width: 300px !important;
+      }
+      #timeScaleButtons {
+          display: flex;
+          gap: 5px;
+      }
+      #timeScaleValue {
+    display: inline-block;
+    width: 70px;
+    text-align: center;
+}
+
+#simTimeDisplay {
+    display: inline-block;
+    width: 900px;
+    text-align: center;
+}
+
+#gravitationalConstant {
+    display: inline-block;
+    width: 150px;
+    text-align: center;
+}
+
+
+
+      #timeScaleButtons button {
+          font-size: 1.2em;
+          padding: 5px 10px;
+          border-radius: 5px;
+          background: #4CAF50;
+          color: white;
+          border: none;
+          cursor: pointer;
+      }
+      #timeScaleButtons button:hover {
+          background: #45a049;
+      }
+      
       @media (max-width: 600px) {
           #controls {
               width: 90%;
@@ -245,8 +288,12 @@
   <div id="globalParameters">
       <label style="display: flex; align-items: center; gap: 5px; color: #fff;">
           <span>⏱ Escala de Tiempo: <span id="timeScaleValue">1</span></span>
-          <input type="range" id="timeScale" min="0.01" max="1000" step="0.1" value="1" style="width:150px;">
+          <div id="timeScaleButtons">
+              <button id="decreaseTimeScale">➖</button>
+              <button id="increaseTimeScale">➕</button>
+          </div>
       </label>
+      <input type="range" id="timeScale" min="0.01" max="1000" step="0.1" value="1">
       <div id="simTimeDisplay">Tiempo transcurrido: 0 años, 0 días, 0 horas, 0 minutos, 0 segundos</div>
       <label style="display: flex; align-items: center; gap: 5px; color: #fff;">
           <span>𝐺:</span>
@@ -309,10 +356,13 @@
   <div id="planetInfo"></div>
   <script>
       // Variables globales
-      let infoWindowClosed = false; // Se activa cuando se presiona X y se mantiene hasta un nuevo foco
+      let infoWindowClosed = false; // Se activa al pulsar X hasta que se haga un nuevo foco
       let isDragging = false; // Para detectar arrastre en la cámara
-
-      // Definir la función toggleControls de forma global
+      
+      // Al iniciar la aplicación, no hay planeta en foco y la infoWindow debe estar oculta
+      let focusedPlanet = null;
+      
+      // Función para mostrar/ocultar controles
       function toggleControls() {
           let controlsDiv = document.getElementById("controls");
           if (controlsDiv.classList.contains("hidden")) {
@@ -322,10 +372,10 @@
           }
       }
       
-      // Variable global para acumular el tiempo simulado (en segundos)
+      // Variable global para acumular el tiempo simulado (en segundos terrestres)
       let simulationTime = 0;
       
-      // Función para convertir segundos a años, días, horas, minutos y segundos
+      // Convierte segundos a años, días, horas, minutos y segundos (tiempo terrestre)
       function formatSimTime(seconds) {
           const secondsPerYear = 86400 * 365;
           const secondsPerDay = 86400;
@@ -343,10 +393,10 @@
       }
       
       function updateSimTimeDisplay() {
-          document.getElementById("simTimeDisplay").innerText = "Tiempo transcurrido: " + formatSimTime(simulationTime);
+          document.getElementById("simTimeDisplay").innerText = "Tiempo terrestre transcurrido: " + formatSimTime(simulationTime);
       }
       
-      // Función getTemperature (definida globalmente)
+      // Calcula la temperatura (para la Tierra)
       function getTemperature(p) {
           if (p.mesh === sun) return "5778 K";
           let currentDistance_m = p.mesh.position.length() * distanceScale;
@@ -356,7 +406,7 @@
           return T.toFixed(1) + " °C";
       }
       
-      // Asignamos funciones al ámbito global para ser llamadas desde el HTML
+      // Se asignan funciones al ámbito global
       window.toggleControls = toggleControls;
       window.focusOnPlanet = focusOnPlanet;
       
@@ -396,8 +446,6 @@
       let sun, paused = false;
       let G = 6.67430e-11;
       let timeScale = 1;
-      let focusedPlanet = null;
-      let viewMode = "normal";
       
       const distanceScale = 1e9;
       const sizeScale = 1000;
@@ -430,11 +478,10 @@
           controls.dampingFactor = 0.05;
           controls.rotateSpeed = 0.5;
           controls.minDistance = 10;
-          // Eventos para detectar arrastre
+          // Detecta arrastre para que la infoWindow no se actualice durante el movimiento
           controls.addEventListener('start', () => { isDragging = true; });
           controls.addEventListener('end', () => { 
               isDragging = false; 
-              // Si se ha enfocado previamente y la infoWindow no se cerró manualmente, se actualiza
               updateFocusedInfoWindow(); 
           });
           controls.addEventListener('change', function() {
@@ -458,9 +505,61 @@
           animate();
   
           renderer.domElement.addEventListener('click', onDocumentMouseDown, false);
+          document.getElementById("infoWindow").style.display = "none";
+          focusedPlanet = null;
   
-          setInterval(updateSimTimeDisplay, 1000);
+          // Configuración de botones para incrementar/decrementar la escala de tiempo
+          setupTimeScaleButtons();
       }
+      
+function setupTimeScaleButtons() {
+    let increaseBtn = document.getElementById("increaseTimeScale");
+    let decreaseBtn = document.getElementById("decreaseTimeScale");
+    let timeScaleSlider = document.getElementById("timeScale");
+    let intervalIncrease, intervalDecrease;
+  
+    // Click simple: se incrementa/decrementa una vez
+    increaseBtn.addEventListener("click", function(e) {
+        timeScaleSlider.stepUp();
+        timeScaleSlider.dispatchEvent(new Event("input"));
+    });
+    decreaseBtn.addEventListener("click", function(e) {
+        timeScaleSlider.stepDown();
+        timeScaleSlider.dispatchEvent(new Event("input"));
+    });
+  
+    // Al mantener pulsado: se incrementa/decrementa continuamente
+    increaseBtn.addEventListener("mousedown", function() {
+        intervalIncrease = setInterval(() => {
+            timeScaleSlider.stepUp();
+            timeScaleSlider.dispatchEvent(new Event("input"));
+        }, 100);
+    });
+    increaseBtn.addEventListener("mouseup", function() {
+        clearInterval(intervalIncrease);
+    });
+    increaseBtn.addEventListener("mouseleave", function() {
+        clearInterval(intervalIncrease);
+    });
+  
+    decreaseBtn.addEventListener("mousedown", function() {
+        intervalDecrease = setInterval(() => {
+            timeScaleSlider.stepDown();
+            timeScaleSlider.dispatchEvent(new Event("input"));
+        }, 100);
+    });
+    decreaseBtn.addEventListener("mouseup", function() {
+        clearInterval(intervalDecrease);
+    });
+    decreaseBtn.addEventListener("mouseleave", function() {
+        clearInterval(intervalDecrease);
+    });
+  
+    // Actualiza el valor mostrado en el span con ID "timeScaleValue"
+    timeScaleSlider.addEventListener("input", function() {
+        document.getElementById("timeScaleValue").innerText = timeScaleSlider.value;
+    });
+}
       
       function createSolarSystem() {
           planets.forEach(p => {
@@ -638,7 +737,7 @@
           }
       }
       
-      // Función para resetear TODOS los planetas a sus valores por defecto y reiniciar el contador de tiempo
+      // Resetea TODOS los planetas a sus valores por defecto y reinicia el contador de tiempo
       function resetDefaultsAll() {
           for (let i = 0; i < defaultPlanetData.length; i++) {
               resetDefaultsPlanet(i);
@@ -827,10 +926,10 @@
           sun.geometry = new THREE.SphereGeometry(visualSunRadius, 64, 64);
       }
       
-      // Si se hace clic sobre el sol, se anima la cámara para enfocarlo y se actualiza la info
+      // Enfoca el Sol y restablece la infoWindow
       function focusOnSun() {
           focusedPlanet = { mesh: sun, data: { temperature: "5778 K" } };
-          infoWindowClosed = false; // Se reabre la info al enfocar un nuevo objeto
+          infoWindowClosed = false;
           new TWEEN.Tween(camera.position)
               .to({ x: sun.position.x + 50, y: sun.position.y + 50, z: sun.position.z + 50 }, 1000)
               .easing(TWEEN.Easing.Cubic.InOut)
@@ -841,9 +940,8 @@
               .start();
       }
       
-      // Al hacer clic sobre un objeto, se anima el enfoque sobre él (sol o planeta)
+      // Al hacer clic sobre un objeto se enfoca; si se está arrastrando se ignora
       function onDocumentMouseDown(event) {
-          // Si se está arrastrando, no procesamos el clic
           if(isDragging) return;
           event.preventDefault();
           let mouse = new THREE.Vector2();
@@ -864,7 +962,6 @@
                   return;
               }
               let index = planets.findIndex(p => p.mesh === clickedMesh);
-              // Si se hace clic sobre el mismo objeto en foco, se actualiza la info
               if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
                   return;
@@ -873,22 +970,18 @@
                   focusOnPlanet(index);
                   updateFocusedInfoWindow();
               }
-          } else {
-              // Si se hace clic en espacio vacío, no se oculta la tarjeta si ya está activa
-              // closeInfoWindow();  <-- Se elimina para que la infoWindow permanezca si está activa
           }
       }
       
       function onKeyDown(event) {
           if (event.key === "Escape") {
               focusedPlanet = null;
-              viewMode = "normal";
               resetCamera();
               closeInfoWindow();
           }
       }
       
-      // Usamos el clock para obtener delta (segundos reales entre frames)
+      // Actualiza y renderiza la escena
       function animate() {
           requestAnimationFrame(animate);
           let delta = clock.getDelta();
@@ -904,16 +997,17 @@
       function pauseSimulation() { paused = true; }
       function resumeSimulation() { paused = false; }
       
-      // La infoWindow se actualiza cada 1000 ms (1 segundo real)
+      // Actualiza el tiempo mostrado cada segundo (tiempo terrestre)
       setInterval(() => {
+          updateSimTimeDisplay();
           if (focusedPlanet && focusedPlanet.mesh) {
               updateFocusedInfoWindow();
           }
       }, 1000);
       
+      // Actualiza la infoWindow con la información del objeto enfocado
       function updateFocusedInfoWindow() {
           let infoDiv = document.getElementById("infoWindow");
-          // Si no hay foco o se ha cerrado manualmente, no se muestra la info
           if (!focusedPlanet || !focusedPlanet.mesh || infoWindowClosed) {
               infoDiv.style.display = "none";
               return;
@@ -927,7 +1021,6 @@
           let inclination = container ? container.data.inclination.toFixed(2) : "N/A";
           let velocityReal = container ? (container.velocity.length() * distanceScale / 1000).toFixed(2) : "N/A";
           let temperature = (mesh === sun) ? "5778 K" : getTemperature(container);
-          let simTimeFormatted = formatSimTime(simulationTime);
           infoDiv.innerHTML = `
              <button class="closeBtn" onclick="closeInfoWindow()">X</button>
              <h3>${mesh.name}</h3>
@@ -939,8 +1032,17 @@
              <p>Inclinación: ${inclination} °</p>
              <p>Rotación: ${rotationSpeed} rad/s</p>
              <p>Temperatura: ${temperature}</p>
-             <p>Tiempo simulado: ${simTimeFormatted}</p>
           `;
+          // Para objetos que no sean el Sol, se calcula el período orbital y los "años terrestres equivalentes"
+          if (mesh !== sun) {
+              let rMetros = focusedPlanet.data.distance * 1000;
+              let T_orbit = 2 * Math.PI * Math.sqrt(Math.pow(rMetros, 3) / (G * sun.mass));
+              let T_orbit_days = T_orbit / 86400;
+              // Los "años terrestres equivalentes" se calculan como: (días simulados) / (período orbital en días)
+              let equivalentEarthYears = (simulationTime / 86400) / T_orbit_days;
+              infoDiv.innerHTML += `<p>Período orbital: ${T_orbit_days.toFixed(0)} días terrestres</p>
+                                    <p>Años terrestres equivalentes: ${equivalentEarthYears.toFixed(2)}</p>`;
+          }
       }
       
       function closeInfoWindow() {
@@ -948,11 +1050,11 @@
           document.getElementById("infoWindow").style.display = "none";
       }
       
-      // Al hacer foco en un planeta, se anima la cámara para posicionarse a una distancia óptima sin forzar el zoom
+      // Enfoca un planeta y restablece la infoWindow
       function focusOnPlanet(index) {
           focusedPlanet = planets[index];
           if(!focusedPlanet || !focusedPlanet.mesh) return;
-          infoWindowClosed = false; // Se reabre la info al enfocar un nuevo objeto
+          infoWindowClosed = false;
           let visualRadius = focusedPlanet.mesh.geometry.parameters.radius * focusedPlanet.mesh.scale.x;
           let offset = new THREE.Vector3(0, visualRadius, visualRadius * 3);
           new TWEEN.Tween(camera.position)
@@ -969,12 +1071,12 @@
               .start();
       }
       
-      // updatePlanets usa delta real y calcula dt para órbitas en segundos simulados (delta * timeScale * 86400)
+      // Actualiza la posición y velocidad de los planetas
       function updatePlanets(delta) {
           if (paused) return;
           let ts = document.getElementById("timeScale").value;
           timeScale = parseFloat(ts);
-          document.getElementById("timeScaleValue").innerText = timeScale;
+          document.getElementById("timeScaleValue").innerText = ts;
   
           G = parseFloat(document.getElementById("gravitationalConstant").value);
   
@@ -1010,14 +1112,12 @@
               p.trail.geometry.setFromPoints(p.trail.points);
           });
   
-          // Auto-rotación: se actualiza usando delta real * timeScale
           planets.forEach(p => {
               if(p.data.rotationSpeed !== undefined) {
                   p.mesh.rotation.y += p.data.rotationSpeed * delta * timeScale;
               }
           });
   
-          // Actualizamos la dirección de la luz para la Tierra (en espacio local)
           planets.forEach(p => {
               if(p && p.mesh && p.mesh.name === "Tierra" && p.mesh.material.uniforms) {
                   let worldLightDir = new THREE.Vector3().subVectors(sun.position, p.mesh.position).normalize();
@@ -1052,7 +1152,6 @@
               .to({ x: 0, y: 0, z: 0 }, 1000)
               .easing(TWEEN.Easing.Cubic.InOut)
               .start();
-          viewMode = "cenital";
       }
       
       function resetSimulation() {
@@ -1067,9 +1166,7 @@
           focusedPlanet = null;
           simulationTime = 0;
           updateSimTimeDisplay();
-          if (viewMode !== "cenital") {
-              resetCamera();
-          }
+          resetCamera();
           closeInfoWindow();
       }
       
@@ -1082,7 +1179,6 @@
               .to({ x: 0, y: 0, z: 0 }, 1000)
               .easing(TWEEN.Easing.Cubic.InOut)
               .start();
-          viewMode = "normal";
       }
       
       function resetDefaultsPlanet(index) {
