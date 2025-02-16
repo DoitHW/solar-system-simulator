@@ -25,7 +25,7 @@
           font-family: 'Orbitron', sans-serif;
           color: #fff;
       }
-      /* Contenedor global en la esquina superior izquierda para el toggle del menú */
+      /* Contenedores globales */
       #globalControls {
           position: fixed;
           top: 10px;
@@ -34,7 +34,6 @@
           display: flex;
           gap: 10px;
       }
-      /* Contenedor global en la parte superior central para parámetros generales */
       #globalParameters {
           position: fixed;
           top: 10px;
@@ -43,11 +42,10 @@
           z-index: 1100;
           display: flex;
           gap: 20px;
-          background: rgba(0, 0, 0, 0.7);
+          background: rgba(0,0,0,0.7);
           padding: 5px 10px;
           border-radius: 5px;
       }
-      /* Contenedor global en la esquina superior derecha para las acciones */
       #globalActions {
           position: fixed;
           top: 10px;
@@ -67,12 +65,12 @@
       #globalActions button:hover {
           color: #45a049;
       }
-      /* Panel principal de controles (parámetros de cada planeta) */
+      /* Panel de controles de parámetros */
       #controls {
           position: absolute;
           top: 60px;
           left: 20px;
-          background: rgba(0, 0, 0, 0.7);
+          background: rgba(0,0,0,0.7);
           padding: 20px;
           border-radius: 10px;
           box-shadow: 0 0 20px rgba(255,255,255,0.1);
@@ -129,34 +127,31 @@
       button:hover {
           background: #45a049;
       }
-      #planetInfo {
-          position: absolute;
-          bottom: 20px;
-          left: 20px;
-          background: rgba(0,0,0,0.7);
-          padding: 15px;
-          border-radius: 10px;
-          display: none;
-      }
-      #focusedPlanetInfo {
+      /* Ventana única de información a la derecha */
+      #infoWindow {
           position: fixed;
           top: 20px;
-          right: 10px;
-          background: rgba(0,0,0,0.7);
-          padding: 15px;
+          right: 20px;
+          width: 300px;
+          background: rgba(0,0,0,0.8);
+          border: 1px solid #4CAF50;
           border-radius: 10px;
+          padding: 15px;
           color: #fff;
-          max-width: 300px;
-          z-index: 1000;
+          z-index: 1200;
           display: none;
       }
-      #starfield {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          pointer-events: none;
+      #infoWindow h3 {
+          margin-top: 0;
+      }
+      #infoWindow button.closeBtn {
+          background: #E53935;
+          border: none;
+          color: #fff;
+          padding: 5px 10px;
+          border-radius: 5px;
+          cursor: pointer;
+          float: right;
       }
       .planet-control {
           border: 1px solid #444;
@@ -203,7 +198,6 @@
           margin-top: 10px;
       }
       
-      /* Media Queries para móviles */
       @media (max-width: 600px) {
           #controls {
               width: 90%;
@@ -223,18 +217,16 @@
   </style>
 </head>
 <body>
-  <canvas id="starfield"></canvas>
+  <!-- Se asigna la textura de galaxias directamente como fondo de la escena -->
   
-  <!-- Contenedor global de controles (esquina superior izquierda) -->
   <div id="globalControls">
       <button id="toggleControls" onclick="toggleControls()">⬅</button>
   </div>
   
-  <!-- Contenedor global de parámetros generales (parte superior central) -->
   <div id="globalParameters">
       <label style="display: flex; align-items: center; gap: 5px; color: #fff;">
           <span>⏱ Escala de Tiempo: <span id="timeScaleValue">1</span></span>
-          <input type="range" id="timeScale" min="0.1" max="100" step="0.1" value="1" style="width:150px;">
+          <input type="range" id="timeScale" min="0.01" max="100" step="0.1" value="1" style="width:150px;">
       </label>
       <label style="display: flex; align-items: center; gap: 5px; color: #fff;">
           <span>𝐺:</span>
@@ -242,7 +234,6 @@
       </label>
   </div>
   
-  <!-- Contenedor global de acciones (esquina superior derecha) -->
   <div id="globalActions">
       <button onclick="pauseSimulation()" title="Pausar">⏸</button>
       <button onclick="resumeSimulation()" title="Reanudar">▶</button>
@@ -250,11 +241,9 @@
       <button onclick="fitAllPlanets()" title="Ver todo">🌐</button>
   </div>
   
-  <!-- Panel de control principal (parámetros de cada planeta) -->
   <div id="controls">
       <h2>Control del Sistema Solar</h2>
       
-      <!-- Controles del Sol -->
       <div class="control-group">
           <h2>Control del Sol</h2>
           <label><span class="fieldName">Radio del Sol (km):</span>
@@ -266,13 +255,11 @@
           <button onclick="updateSunProperties()">Actualizar Sol</button>
       </div>
       
-      <!-- Controles de los planetas -->
       <div class="control-group">
           <h2>Control de Planetas</h2>
           <div id="planetControls"></div>
       </div>
       
-      <!-- Sección para agregar nuevo planeta -->
       <div class="add-planet">
           <h2>Agregar Planeta</h2>
           <label><span class="fieldName">Nombre:</span>
@@ -297,38 +284,57 @@
       </div>
   </div>
   
-  <!-- Ficha informativa del planeta en foco -->
-  <div id="focusedPlanetInfo"></div>
+  <!-- Ventana única de información a la derecha -->
+  <div id="infoWindow">
+      <button class="closeBtn" onclick="closeInfoWindow()">X</button>
+      <div id="infoContent"></div>
+  </div>
+  
   <div id="planetInfo"></div>
   
   <script>
+      // Se han añadido nuevos datos: rotationSpeed (en radianes por frame) para cada planeta conocido.
+      const planetTextures = {
+          "Mercurio": "8k_mercury.jpg",
+          "Venus": "8k_venus_surface.jpg",
+          "Marte": "8k_mars.jpg",
+          "Júpiter": "8k_jupiter.jpg",
+          "Saturno": "8k_saturn.jpg",
+          "Urano": "2k_uranus.jpg",
+          "Neptuno": "2k_neptune.jpg"
+      };
+      // Texturas para planetas nuevos aleatorios
+      const randomTextures = [
+          "4k_ceres_fictional.jpg",
+          "4k_haumea_fictional.jpg",
+          "4k_makemake_fictional.jpg",
+          "4k_eris_fictional.jpg"
+      ];
+      
+      // Datos base de planetas (se añade rotationSpeed, en rad/s aproximado, para la simulación de auto-rotación)
+      let planetDataGlobal = [
+          { name: "Mercurio", radius: 2439.7, density: 5427,  distance: 57.9e6,  inclination: 7,    longitude: 0, rotationSpeed: 0.00005 },
+          { name: "Venus",    radius: 6051.8, density: 5243,  distance: 108.2e6, inclination: 3.4,  longitude: 45, rotationSpeed: 0.00003 },
+          { name: "Tierra",   radius: 6371,   density: 5514,  distance: 149.6e6, inclination: 0,    longitude: 90, rotationSpeed: 7.27e-5 },
+          { name: "Marte",    radius: 3389.5, density: 3933,  distance: 227.9e6, inclination: 1.85, longitude: 135, rotationSpeed: 7e-5 },
+          { name: "Júpiter",  radius: 69911,  density: 1326,  distance: 778.5e6, inclination: 1.304, longitude: 210, rotationSpeed: 2.9e-5 },
+          { name: "Saturno",  radius: 58232,  density: 687,   distance: 1.433e9, inclination: 2.485, longitude: 250, rotationSpeed: 2.3e-5 },
+          { name: "Urano",    radius: 25362,  density: 1271,  distance: 2.872e9, inclination: 0.773, longitude: 80, rotationSpeed: 1.4e-5 },
+          { name: "Neptuno",  radius: 24622,  density: 1638,  distance: 4.495e9, inclination: 1.77,  longitude: 300, rotationSpeed: 1.4e-5 }
+      ];
+      let defaultPlanetData = JSON.parse(JSON.stringify(planetDataGlobal));
+      
       let scene, camera, renderer, controls;
-      let planets = []; // Cada elemento: { mesh, velocity, trail, data, initialPosition, initialVelocity }
+      let planets = []; // Cada objeto: { mesh, velocity, trail, data, initialPosition, initialVelocity }
       let sun, paused = false;
       let G = 6.67430e-11;
-      let starfield;
       let timeScale = 1;
       let focusedPlanet = null;
-      // Modo de vista: "normal" o "cenital"
       let viewMode = "normal";
       
       const distanceScale = 1e9;
       const sizeScale = 1000;
       const sunSizeScale = 5;
-      
-      // Datos por defecto de los planetas
-      let planetDataGlobal = [
-          { name: "Mercurio", radius: 2439.7, density: 5427,  distance: 57.9e6,  inclination: 7,    longitude: 0 },
-          { name: "Venus",    radius: 6051.8, density: 5243,  distance: 108.2e6, inclination: 3.4,  longitude: 45 },
-          { name: "Tierra",   radius: 6371,   density: 5514,  distance: 149.6e6, inclination: 0,    longitude: 90 },
-          { name: "Marte",    radius: 3389.5, density: 3933,  distance: 227.9e6, inclination: 1.85, longitude: 135 },
-          { name: "Júpiter",  radius: 69911,  density: 1326,  distance: 778.5e6, inclination: 1.304, longitude: 210 },
-          { name: "Saturno",  radius: 58232,  density: 687,   distance: 1.433e9, inclination: 2.485, longitude: 250 },
-          { name: "Urano",    radius: 25362,  density: 1271,  distance: 2.872e9, inclination: 0.773, longitude: 80 },
-          { name: "Neptuno",  radius: 24622,  density: 1638,  distance: 4.495e9, inclination: 1.77,  longitude: 300 }
-      ];
-      // Copia de seguridad de los datos por defecto
-      let defaultPlanetData = JSON.parse(JSON.stringify(planetDataGlobal));
       
       function calcularMasa(radioKm, densidad) {
           let radioM = radioKm * 1000;
@@ -337,13 +343,15 @@
       
       function init() {
           scene = new THREE.Scene();
-          scene.background = new THREE.Color(0x000000);
+          // Se asigna la textura de galaxias directamente al fondo
+          const textureLoader = new THREE.TextureLoader();
+          scene.background = textureLoader.load('textures/galaxy_starfield.png');
   
           let maxPlanetDistance = Math.max(...planetDataGlobal.map(d => (d.distance * 1000) / distanceScale));
           camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, maxPlanetDistance * 3);
           camera.position.set(0, 150, 300);
   
-          renderer = new THREE.WebGLRenderer({ antialias: true });
+          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
           renderer.setSize(window.innerWidth, window.innerHeight);
           renderer.setPixelRatio(window.devicePixelRatio);
           document.body.appendChild(renderer.domElement);
@@ -352,6 +360,12 @@
           controls.enableDamping = true;
           controls.dampingFactor = 0.05;
           controls.rotateSpeed = 0.5;
+          controls.minDistance = 10;
+          controls.addEventListener('change', function() {
+              if(focusedPlanet) {
+                  focusedPlanet.cameraOffset.copy(camera.position).sub(focusedPlanet.mesh.position);
+              }
+          });
   
           const ambientLight = new THREE.AmbientLight(0x333333);
           scene.add(ambientLight);
@@ -362,33 +376,18 @@
           window.addEventListener("keydown", onKeyDown, false);
   
           createSolarSystem();
-          createStarfield();
           animate();
   
+          // Al hacer clic se actúa como si se pulsara el icono de "foco"
           renderer.domElement.addEventListener('click', onDocumentMouseDown, false);
-      }
-      
-      function createStarfield() {
-          starfield = document.getElementById('starfield');
-          starfield.width = window.innerWidth;
-          starfield.height = window.innerHeight;
-          let ctx = starfield.getContext('2d');
-          ctx.clearRect(0, 0, starfield.width, starfield.height);
-          for (let i = 0; i < 1000; i++) {
-              let x = Math.random() * starfield.width;
-              let y = Math.random() * starfield.height;
-              let radius = Math.random() * 1.2;
-              ctx.beginPath();
-              ctx.arc(x, y, radius, 0, 2 * Math.PI);
-              ctx.fillStyle = 'white';
-              ctx.fill();
-          }
       }
       
       function createSolarSystem() {
           planets.forEach(p => {
-              scene.remove(p.mesh);
-              scene.remove(p.trail);
+              if(p && p.mesh) {
+                  scene.remove(p.mesh);
+                  scene.remove(p.trail);
+              }
           });
           planets = [];
           if (sun) scene.remove(sun);
@@ -399,22 +398,24 @@
           let visualSunRadius = (sunRadiusKm * 1000 / distanceScale) * sunSizeScale;
   
           let sunGeometry = new THREE.SphereGeometry(visualSunRadius, 64, 64);
-          // Cargar textura del Sol desde una URL pública
           const textureLoader = new THREE.TextureLoader();
-          let sunTexture = textureLoader.load('textures/sun.png');
+          let sunTexture = textureLoader.load('textures/2k_sun.jpg');
+          sunTexture.format = THREE.RGBFormat;
           let sunMaterial = new THREE.MeshPhongMaterial({
               map: sunTexture,
               emissive: 0xffffff,
               emissiveMap: sunTexture,
               emissiveIntensity: 1.0,
-              shininess: 10
+              shininess: 10,
+              transparent: false,
+              opacity: 1,
+              alphaTest: 0.1
           });
           sun = new THREE.Mesh(sunGeometry, sunMaterial);
           sun.position.set(0, 0, 0);
           sun.mass = sunMass;
           sun.radiusKm = sunRadiusKm;
           sun.density = sunDensity;
-          // Añadir luz puntual al Sol para que su luz afecte a los planetas
           let sunLight = new THREE.PointLight(0xffffff, 2, 1000);
           sun.add(sunLight);
           scene.add(sun);
@@ -436,11 +437,80 @@
               visualDistance * Math.sin(ΩRad) * Math.cos(iRad)
           );
           let geometry = new THREE.SphereGeometry(visualRadius, 32, 32);
-          let color = Math.floor(Math.random() * 0xffffff);
-          let material = new THREE.MeshPhongMaterial({ color: color, shininess: 50 });
-          let planet = new THREE.Mesh(geometry, material);
+          let planet;
+          const textureLoader = new THREE.TextureLoader();
+          
+          if(data.name === "Tierra") {
+              // Modificación en el shader para que muestre día en una mitad y noche en la otra
+              let dayTexture = textureLoader.load('textures/8k_earth_daymap.jpg');
+              dayTexture.format = THREE.RGBFormat;
+              let nightTexture = textureLoader.load('textures/8k_earth_nightmap.jpg');
+              nightTexture.format = THREE.RGBFormat;
+              let earthUniforms = {
+                  mapDay: { value: dayTexture },
+                  mapNight: { value: nightTexture },
+                  lightDirection: { value: new THREE.Vector3(0,0,0) }
+              };
+              let earthMaterial = new THREE.ShaderMaterial({
+                  uniforms: earthUniforms,
+                  vertexShader: `
+                      varying vec2 vUv;
+                      varying vec3 vNormal;
+                      void main() {
+                          vUv = uv;
+                          vNormal = normalMatrix * normal;
+                          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                      }
+                  `,
+                  fragmentShader: `
+                      uniform sampler2D mapDay;
+                      uniform sampler2D mapNight;
+                      uniform vec3 lightDirection;
+                      varying vec2 vUv;
+                      varying vec3 vNormal;
+                      void main() {
+                          // Se calcula el dot product sin clamping para obtener negativo y positivo
+                          float factor = dot(normalize(vNormal), lightDirection);
+                          // Si factor es >= 0 se muestra la textura de día, si es negativo la de noche
+                          float stepVal = step(0.0, factor);
+                          vec4 color = mix(texture2D(mapNight, vUv), texture2D(mapDay, vUv), stepVal);
+                          gl_FragColor = color;
+                      }
+                  `,
+                  transparent: false
+              });
+              planet = new THREE.Mesh(geometry, earthMaterial);
+              planet.name = data.name;
+          } else if(planetTextures[data.name]) {
+              let textureFile = planetTextures[data.name];
+              let tex = textureLoader.load('textures/' + textureFile);
+              tex.format = THREE.RGBFormat;
+              let material = new THREE.MeshPhongMaterial({
+                  map: tex,
+                  transparent: false,
+                  opacity: 1,
+                  alphaTest: 0.1,
+                  shininess: 50
+              });
+              planet = new THREE.Mesh(geometry, material);
+              planet.name = data.name;
+          } else {
+              // Para nuevos planetas, asigna aleatoriamente una de las texturas nuevas
+              let randomIndex = Math.floor(Math.random() * randomTextures.length);
+              let tex = textureLoader.load('textures/' + randomTextures[randomIndex]);
+              tex.format = THREE.RGBFormat;
+              let material = new THREE.MeshPhongMaterial({
+                  map: tex,
+                  transparent: false,
+                  opacity: 1,
+                  alphaTest: 0.1,
+                  shininess: 50
+              });
+              planet = new THREE.Mesh(geometry, material);
+              planet.name = data.name;
+          }
+  
           planet.position.copy(pos);
-          planet.name = data.name;
           planet.radiusKm = data.radius;
           planet.density = data.density;
           planet.mass = calcularMasa(data.radius, data.density);
@@ -448,16 +518,16 @@
   
           let rMetros = data.distance * 1000;
           let vOrbital = Math.sqrt(G * sun.mass / rMetros);
-          let normal = new THREE.Vector3(
+          let normalVec = new THREE.Vector3(
               -Math.sin(ΩRad) * Math.sin(iRad),
               Math.cos(iRad),
               Math.cos(ΩRad) * Math.sin(iRad)
           ).normalize();
-          let velDir = new THREE.Vector3().crossVectors(normal, pos).normalize();
+          let velDir = new THREE.Vector3().crossVectors(normalVec, pos).normalize();
           let velocity = velDir.multiplyScalar(vOrbital / distanceScale);
   
           let trailGeometry = new THREE.BufferGeometry();
-          let trailMaterial = new THREE.LineBasicMaterial({ color: material.color, transparent: true, opacity: 0.5 });
+          let trailMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
           let trail = new THREE.Line(trailGeometry, trailMaterial);
           trail.points = [];
   
@@ -471,75 +541,63 @@
               initialVelocity: velocity.clone(),
               data: Object.assign({}, data)
           });
+  
+          if(data.name === "Saturno") {
+              let ringInnerRadius = visualRadius * 1.2;
+              let ringOuterRadius = visualRadius * 2.0;
+              let ringGeometry = new THREE.RingGeometry(ringInnerRadius, ringOuterRadius, 64);
+              ringGeometry.rotateX(-Math.PI / 2);
+              let ringTexture = textureLoader.load('textures/8k_saturn_ring_alpha.png');
+              ringTexture.format = THREE.RGBFormat;
+              let ringMaterial = new THREE.MeshBasicMaterial({
+                  map: ringTexture,
+                  side: THREE.DoubleSide,
+                  transparent: true,
+                  opacity: 1,
+                  alphaTest: 0.1
+              });
+              let ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+              planet.add(ringMesh);
+          }
       }
       
       function updatePlanetControlsUI() {
           let html = "";
           planets.forEach((p, index) => {
-              let colorHex = "#" + p.mesh.material.color.getHexString();
+              let colorHex = "#" + (p.mesh.material && p.mesh.material.color ? p.mesh.material.color.getHexString() : "ffffff");
               html += `<div class="planet-control">
                           <h3 style="color:${colorHex}; display:inline-block;">${p.mesh.name}</h3>
                           <button class="focus-btn" onclick="focusOnPlanet(${index})" title="Foco"><span>👁️</span></button>
                           <button class="reset-default-btn" onclick="resetDefaultsPlanet(${index})" title="Restaurar valores por defecto">↻</button>
                           
                           <label><span class="fieldName">Radio (km):</span>
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'radius${index}', 'decrement', ${index})" 
-                                      onmouseup="clearAdjust('radius${index}', 'decrement', ${index})" 
-                                      onmouseleave="clearAdjust('radius${index}', 'decrement', ${index})">➖</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'radius${index}', 'decrement', ${index})" onmouseup="clearAdjust('radius${index}', 'decrement', ${index})" onmouseleave="clearAdjust('radius${index}', 'decrement', ${index})">➖</button>
                               <input type="number" id="radius${index}" value="${p.data.radius}" step="1" onkeydown="if(event.key==='Enter') updatePlanetProperties(${index})">
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'radius${index}', 'increment', ${index})" 
-                                      onmouseup="clearAdjust('radius${index}', 'increment', ${index})" 
-                                      onmouseleave="clearAdjust('radius${index}', 'increment', ${index})">➕</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'radius${index}', 'increment', ${index})" onmouseup="clearAdjust('radius${index}', 'increment', ${index})" onmouseleave="clearAdjust('radius${index}', 'increment', ${index})">➕</button>
                           </label>
                           
                           <label><span class="fieldName">Densidad (kg/m³):</span>
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'density${index}', 'decrement', ${index})" 
-                                      onmouseup="clearAdjust('density${index}', 'decrement', ${index})" 
-                                      onmouseleave="clearAdjust('density${index}', 'decrement', ${index})">➖</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'density${index}', 'decrement', ${index})" onmouseup="clearAdjust('density${index}', 'decrement', ${index})" onmouseleave="clearAdjust('density${index}', 'decrement', ${index})">➖</button>
                               <input type="number" id="density${index}" value="${p.data.density}" step="1" onkeydown="if(event.key==='Enter') updatePlanetProperties(${index})">
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'density${index}', 'increment', ${index})" 
-                                      onmouseup="clearAdjust('density${index}', 'increment', ${index})" 
-                                      onmouseleave="clearAdjust('density${index}', 'increment', ${index})">➕</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'density${index}', 'increment', ${index})" onmouseup="clearAdjust('density${index}', 'increment', ${index})" onmouseleave="clearAdjust('density${index}', 'increment', ${index})">➕</button>
                           </label>
                           
                           <label><span class="fieldName">Distancia (km):</span>
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'distance${index}', 'decrement', ${index})" 
-                                      onmouseup="clearAdjust('distance${index}', 'decrement', ${index})" 
-                                      onmouseleave="clearAdjust('distance${index}', 'decrement', ${index})">➖</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'distance${index}', 'decrement', ${index})" onmouseup="clearAdjust('distance${index}', 'decrement', ${index})" onmouseleave="clearAdjust('distance${index}', 'decrement', ${index})">➖</button>
                               <input type="number" id="distance${index}" value="${p.data.distance}" step="1e5" onkeydown="if(event.key==='Enter') updatePlanetProperties(${index})">
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'distance${index}', 'increment', ${index})" 
-                                      onmouseup="clearAdjust('distance${index}', 'increment', ${index})" 
-                                      onmouseleave="clearAdjust('distance${index}', 'increment', ${index})">➕</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'distance${index}', 'increment', ${index})" onmouseup="clearAdjust('distance${index}', 'increment', ${index})" onmouseleave="clearAdjust('distance${index}', 'increment', ${index})">➕</button>
                           </label>
                           
                           <label><span class="fieldName">Inclinación (°):</span>
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'inclination${index}', 'decrement', ${index})" 
-                                      onmouseup="clearAdjust('inclination${index}', 'decrement', ${index})" 
-                                      onmouseleave="clearAdjust('inclination${index}', 'decrement', ${index})">➖</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'inclination${index}', 'decrement', ${index})" onmouseup="clearAdjust('inclination${index}', 'decrement', ${index})" onmouseleave="clearAdjust('inclination${index}', 'decrement', ${index})">➖</button>
                               <input type="number" id="inclination${index}" value="${p.data.inclination}" step="0.1" onkeydown="if(event.key==='Enter') updatePlanetProperties(${index})">
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'inclination${index}', 'increment', ${index})" 
-                                      onmouseup="clearAdjust('inclination${index}', 'increment', ${index})" 
-                                      onmouseleave="clearAdjust('inclination${index}', 'increment', ${index})">➕</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'inclination${index}', 'increment', ${index})" onmouseup="clearAdjust('inclination${index}', 'increment', ${index})" onmouseleave="clearAdjust('inclination${index}', 'increment', ${index})">➕</button>
                           </label>
                           
-                          <label><span class="fieldName">Longitud del Nodo (°):</span>
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'longitude${index}', 'decrement', ${index})" 
-                                      onmouseup="clearAdjust('longitude${index}', 'decrement', ${index})" 
-                                      onmouseleave="clearAdjust('longitude${index}', 'decrement', ${index})">➖</button>
+                          <label><span class="fieldName">Longitud (°):</span>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'longitude${index}', 'decrement', ${index})" onmouseup="clearAdjust('longitude${index}', 'decrement', ${index})" onmouseleave="clearAdjust('longitude${index}', 'decrement', ${index})">➖</button>
                               <input type="number" id="longitude${index}" value="${p.data.longitude}" step="0.1" onkeydown="if(event.key==='Enter') updatePlanetProperties(${index})">
-                              <button type="button" class="adjust-btn" 
-                                      onmousedown="handleAdjust(event, 'longitude${index}', 'increment', ${index})" 
-                                      onmouseup="clearAdjust('longitude${index}', 'increment', ${index})" 
-                                      onmouseleave="clearAdjust('longitude${index}', 'increment', ${index})">➕</button>
+                              <button type="button" class="adjust-btn" onmousedown="handleAdjust(event, 'longitude${index}', 'increment', ${index})" onmouseup="clearAdjust('longitude${index}', 'increment', ${index})" onmouseleave="clearAdjust('longitude${index}', 'increment', ${index})">➕</button>
                           </label>
                           
                           <button class="delete-btn" onclick="removePlanet(${index})">Eliminar</button>
@@ -548,7 +606,6 @@
           document.getElementById("planetControls").innerHTML = html;
       }
       
-      // Objeto global para almacenar los temporizadores de cada botón
       let adjustTimers = {};
       
       function handleAdjust(e, fieldId, action, planetIndex) {
@@ -632,13 +689,18 @@
   
           let rMetros = newDistance * 1000;
           let vOrbital = Math.sqrt(G * sun.mass / rMetros);
-          let normal = new THREE.Vector3(
+          let normalVec = new THREE.Vector3(
               -Math.sin(ΩRad) * Math.sin(iRad),
               Math.cos(iRad),
               Math.cos(ΩRad) * Math.sin(iRad)
           ).normalize();
-          let velDir = new THREE.Vector3().crossVectors(normal, pos).normalize();
+          let velDir = new THREE.Vector3().crossVectors(normalVec, pos).normalize();
           planetObj.velocity = velDir.multiplyScalar(vOrbital / distanceScale);
+  
+          // Actualiza la auto-rotación (si está definido rotationSpeed)
+          if (planetObj.data.rotationSpeed !== undefined) {
+              planetObj.mesh.rotation.y += planetObj.data.rotationSpeed;
+          }
   
           planetObj.initialPosition.copy(planetObj.mesh.position);
           planetObj.initialVelocity.copy(planetObj.velocity);
@@ -649,8 +711,10 @@
       }
       
       function removePlanet(index) {
-          scene.remove(planets[index].mesh);
-          scene.remove(planets[index].trail);
+          if(planets[index] && planets[index].mesh) {
+              scene.remove(planets[index].mesh);
+              scene.remove(planets[index].trail);
+          }
           planets.splice(index, 1);
           planetDataGlobal.splice(index, 1);
           updatePlanetControlsUI();
@@ -683,21 +747,90 @@
           sun.geometry = new THREE.SphereGeometry(visualSunRadius, 64, 64);
       }
       
+      // Al hacer clic sobre un planeta, se actúa como si se pulsara el icono de "foco"
+      function onDocumentMouseDown(event) {
+          event.preventDefault();
+          let mouse = new THREE.Vector2();
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  
+          let raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(mouse, camera);
+  
+          let intersects = raycaster.intersectObjects(planets.map(p => p.mesh));
+          if (intersects.length > 0) {
+              let clickedMesh = intersects[0].object;
+              let index = planets.findIndex(p => p.mesh === clickedMesh);
+              // Si ya está enfocado, no se vuelve a re-enfocar (para permitir rotación libre)
+              if (focusedPlanet && focusedPlanet.mesh === clickedMesh) {
+                  updateFocusedInfoWindow();
+                  return;
+              }
+              if(index >= 0) {
+                  focusOnPlanet(index);
+                  updateFocusedInfoWindow();
+              }
+          } else {
+              closeInfoWindow();
+          }
+      }
+      
+      function onKeyDown(event) {
+          if (event.key === "Escape") {
+              focusedPlanet = null;
+              viewMode = "normal";
+              resetCamera();
+              closeInfoWindow();
+          }
+      }
+      
+      // Se actualiza la infoWindow cada 1000 ms
+      setInterval(() => {
+          if (focusedPlanet && focusedPlanet.mesh) {
+              updateFocusedInfoWindow();
+          }
+      }, 1000);
+      
+      function updateFocusedInfoWindow() {
+          let infoDiv = document.getElementById("infoWindow");
+          if (!focusedPlanet || !focusedPlanet.mesh) {
+              infoDiv.style.display = "none";
+              return;
+          }
+          infoDiv.style.display = "block";
+          let mesh = focusedPlanet.mesh;
+          let distanceReal = ((mesh.position.length() * distanceScale) / 1000).toFixed(2);
+          let radiusReal = mesh.radiusKm.toFixed(2);
+          // Se obtiene la inclinación y la velocidad de rotación desde los datos del planeta
+          let container = planets.find(p => p.mesh === mesh);
+          let rotationSpeed = container && container.data.rotationSpeed !== undefined ? container.data.rotationSpeed.toExponential(2) : "N/A";
+          let inclination = container ? container.data.inclination.toFixed(2) : "N/A";
+          let velocityReal = container ? (container.velocity.length() * distanceScale / 1000).toFixed(2) : "N/A";
+          infoDiv.innerHTML = `
+             <button class="closeBtn" onclick="closeInfoWindow()">X</button>
+             <h3>${mesh.name}</h3>
+             <p>Masa: ${mesh.mass.toExponential(2)} kg</p>
+             <p>Radio: ${radiusReal} km</p>
+             <p>Densidad: ${mesh.density ? mesh.density.toFixed(0) : "N/A"} kg/m³</p>
+             <p>Distancia al Sol: ${distanceReal} km</p>
+             <p>Velocidad orbital: ${velocityReal} km/s</p>
+             <p>Inclinación: ${inclination} °</p>
+             <p>Rotación: ${rotationSpeed} rad/s</p>
+          `;
+      }
+      
+      function closeInfoWindow() {
+          document.getElementById("infoWindow").style.display = "none";
+      }
+      
+      // La función focusOnPlanet se usa también desde el panel de controles
       function focusOnPlanet(index) {
-          viewMode = "normal";
           focusedPlanet = planets[index];
-          new TWEEN.Tween(camera.position)
-              .to({
-                  x: focusedPlanet.mesh.position.x + 50 * focusedPlanet.mesh.scale.x,
-                  y: focusedPlanet.mesh.position.y + 50 * focusedPlanet.mesh.scale.y,
-                  z: focusedPlanet.mesh.position.z + 50 * focusedPlanet.mesh.scale.z
-              }, 1000)
-              .easing(TWEEN.Easing.Cubic.InOut)
-              .start();
-          new TWEEN.Tween(controls.target)
-              .to(focusedPlanet.mesh.position, 1000)
-              .easing(TWEEN.Easing.Cubic.InOut)
-              .start();
+          if(!focusedPlanet || !focusedPlanet.mesh) return;
+          let visualRadius = focusedPlanet.mesh.geometry.parameters.radius * focusedPlanet.mesh.scale.x;
+          let offset = new THREE.Vector3(0, visualRadius, visualRadius * 3);
+          focusedPlanet.cameraOffset = offset;
+          controls.target.copy(focusedPlanet.mesh.position);
       }
       
       function updatePlanets() {
@@ -711,6 +844,7 @@
           let dt = 86400 * timeScale;
           
           planets.forEach((p, index) => {
+              if(!p || !p.mesh) return;
               let totalForce = new THREE.Vector3(0, 0, 0);
   
               let sunDirection = new THREE.Vector3().subVectors(sun.position, p.mesh.position);
@@ -719,7 +853,7 @@
               totalForce.add(sunForce);
   
               planets.forEach((otherP, otherIndex) => {
-                  if (index !== otherIndex) {
+                  if (index !== otherIndex && otherP && otherP.mesh) {
                       let direction = new THREE.Vector3().subVectors(otherP.mesh.position, p.mesh.position);
                       let distance = direction.length() * distanceScale;
                       let force = direction.normalize().multiplyScalar(G * otherP.mesh.mass * p.mesh.mass / (distance * distance));
@@ -736,28 +870,40 @@
               p.trail.points.push(p.mesh.position.clone());
               if (p.trail.points.length > 1000) p.trail.points.shift();
               p.trail.geometry.setFromPoints(p.trail.points);
+  
+              // Auto-rotación: se incrementa la rotación en función de rotationSpeed
+              if(p.data.rotationSpeed !== undefined) {
+                  p.mesh.rotation.y += p.data.rotationSpeed;
+              }
           });
   
-          if (focusedPlanet) {
+          if(focusedPlanet && focusedPlanet.mesh && focusedPlanet.cameraOffset) {
               controls.target.copy(focusedPlanet.mesh.position);
+              camera.position.copy(focusedPlanet.mesh.position).add(focusedPlanet.cameraOffset);
           }
+  
+          planets.forEach(p => {
+              if(p && p.mesh && p.mesh.name === "Tierra" && p.mesh.material.uniforms) {
+                  p.mesh.material.uniforms.lightDirection.value = new THREE.Vector3().copy(p.mesh.position).negate().normalize();
+              }
+          });
       }
       
       function fitAllPlanets() {
           if (planets.length === 0) return;
           let maxDistance = 0;
           planets.forEach(p => {
-              let d = p.mesh.position.length();
-              if (d > maxDistance) maxDistance = d;
+              if(p && p.mesh) {
+                  let d = p.mesh.position.length();
+                  if (d > maxDistance) maxDistance = d;
+              }
           });
-          let fov = camera.fov * Math.PI / 180;
-          let requiredDistance = maxDistance / Math.sin(fov / 2) * 1.2;
-  
-          camera.far = requiredDistance * 3;
+          let height = maxDistance * 1.5;
+          camera.far = height * 4;
           camera.updateProjectionMatrix();
   
           new TWEEN.Tween(camera.position)
-              .to({ x: 0, y: requiredDistance, z: 0 }, 1000)
+              .to({ x: 0, y: height, z: height }, 1000)
               .easing(TWEEN.Easing.Cubic.InOut)
               .start();
           new TWEEN.Tween(controls.target)
@@ -769,15 +915,18 @@
       
       function resetSimulation() {
           planets.forEach((p, index) => {
-              p.mesh.position.copy(p.initialPosition);
-              p.velocity.copy(p.initialVelocity);
-              p.trail.points = [];
-              p.trail.geometry.setFromPoints([]);
+              if(p && p.mesh) {
+                  p.mesh.position.copy(p.initialPosition);
+                  p.velocity.copy(p.initialVelocity);
+                  p.trail.points = [];
+                  p.trail.geometry.setFromPoints([]);
+              }
           });
           focusedPlanet = null;
           if (viewMode !== "cenital") {
               resetCamera();
           }
+          closeInfoWindow();
       }
       
       function resetCamera() {
@@ -795,6 +944,7 @@
       function resetDefaultsPlanet(index) {
           let defaultData = defaultPlanetData[index];
           let p = planets[index];
+          if(!p || !p.mesh) return;
           p.data.radius = defaultData.radius;
           p.data.density = defaultData.density;
           p.data.distance = defaultData.distance;
@@ -815,9 +965,6 @@
           camera.aspect = window.innerWidth / window.innerHeight;
           camera.updateProjectionMatrix();
           renderer.setSize(window.innerWidth, window.innerHeight);
-          starfield.width = window.innerWidth;
-          starfield.height = window.innerHeight;
-          createStarfield();
       }
       
       function onDocumentMouseDown(event) {
@@ -831,67 +978,28 @@
   
           let intersects = raycaster.intersectObjects(planets.map(p => p.mesh));
           if (intersects.length > 0) {
-              let planet = intersects[0].object;
-              focusedPlanet = planets.find(p => p.mesh === planet);
-              showPlanetInfo(planet);
-  
-              new TWEEN.Tween(camera.position)
-                  .to({
-                      x: planet.position.x + 50 * planet.scale.x,
-                      y: planet.position.y + 50 * planet.scale.y,
-                      z: planet.position.z + 50 * planet.scale.z
-                  }, 1000)
-                  .easing(TWEEN.Easing.Cubic.InOut)
-                  .start();
-              new TWEEN.Tween(controls.target)
-                  .to(planet.position, 1000)
-                  .easing(TWEEN.Easing.Cubic.InOut)
-                  .start();
-              viewMode = "normal";
+              let clickedMesh = intersects[0].object;
+              let index = planets.findIndex(p => p.mesh === clickedMesh);
+              // Si ya está enfocado, no se vuelve a enfocar
+              if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
+                  updateFocusedInfoWindow();
+                  return;
+              }
+              if(index >= 0) {
+                  focusOnPlanet(index);
+                  updateFocusedInfoWindow();
+              }
           } else {
-              hidePlanetInfo();
+              closeInfoWindow();
           }
       }
       
       function onKeyDown(event) {
-          if (event.key === "Escape") {
+          if (event.key === "Escape") {fav
               focusedPlanet = null;
               viewMode = "normal";
               resetCamera();
-              hidePlanetInfo();
-          }
-      }
-      
-      function showPlanetInfo(planet) {
-          let infoDiv = document.getElementById('planetInfo');
-          let distanceReal = ((planet.position.length() * distanceScale) / 1000).toFixed(2);
-          let radiusReal = planet.mesh.radiusKm.toFixed(2);
-          let planetData = planets.find(p => p.mesh === planet);
-          let velocityReal = (planetData.velocity.length() * distanceScale / 1000).toFixed(2);
-          infoDiv.innerHTML = `
-              <h3>${planet.name}</h3>
-              <p>Masa: ${planet.mass.toExponential(2)} kg</p>
-              <p>Radio: ${radiusReal} km</p>
-              <p>Densidad: ${planet.mesh.density.toFixed(0)} kg/m³</p>
-              <p>Distancia al Sol: ${distanceReal} km</p>
-              <p>Velocidad: ${velocityReal} km/s</p>
-          `;
-          infoDiv.style.display = 'block';
-      }
-      
-      function hidePlanetInfo() {
-          document.getElementById('planetInfo').style.display = 'none';
-      }
-      
-      function toggleControls() {
-          let controlsDiv = document.getElementById("controls");
-          let toggleBtn = document.getElementById("toggleControls");
-          if (controlsDiv.classList.contains("hidden")) {
-              controlsDiv.classList.remove("hidden");
-              toggleBtn.innerText = "⬅";
-          } else {
-              controlsDiv.classList.add("hidden");
-              toggleBtn.innerText = "➡";
+              closeInfoWindow();
           }
       }
       
@@ -900,41 +1008,16 @@
           updatePlanets();
           TWEEN.update();
           controls.update();
-          // Animar el Sol (rotación lenta)
           if (sun) {
               sun.rotation.y += 0.001;
           }
           renderer.render(scene, camera);
       }
       
-      // Actualiza la ficha informativa del planeta en foco cada 1000 ms
-      function updateFocusedPlanetInfo() {
-          const infoPanel = document.getElementById('focusedPlanetInfo');
-          if (!focusedPlanet) {
-              infoPanel.style.display = 'none';
-              return;
-          }
-          infoPanel.style.display = 'block';
-          const planet = focusedPlanet.mesh;
-          const planetData = planets.find(p => p.mesh === planet);
-          const distanceReal = ((planet.position.length() * distanceScale) / 1000).toFixed(2);
-          const radiusReal = planet.radiusKm.toFixed(2);
-          const velocityReal = (planetData.velocity.length() * distanceScale / 1000).toFixed(2);
-          infoPanel.innerHTML = `
-              <h3>${planet.name}</h3>
-              <p>Masa: ${planet.mass.toExponential(2)} kg</p>
-              <p>Radio: ${radiusReal} km</p>
-              <p>Densidad: ${planet.density.toFixed(0)} kg/m³</p>
-              <p>Distancia al Sol: ${distanceReal} km</p>
-              <p>Velocidad: ${velocityReal} km/s</p>
-          `;
-      }
-      
       function pauseSimulation() { paused = true; }
       function resumeSimulation() { paused = false; }
       
       init();
-      setInterval(updateFocusedPlanetInfo, 1000);
       animate();
   </script>
 </body>
