@@ -217,12 +217,9 @@
   </style>
 </head>
 <body>
-  <!-- Se asigna la textura de galaxias directamente como fondo de la escena -->
-  
   <div id="globalControls">
       <button id="toggleControls" onclick="toggleControls()">⬅</button>
   </div>
-  
   <div id="globalParameters">
       <label style="display: flex; align-items: center; gap: 5px; color: #fff;">
           <span>⏱ Escala de Tiempo: <span id="timeScaleValue">1</span></span>
@@ -233,17 +230,14 @@
           <input type="number" id="gravitationalConstant" min="1e-12" max="1e-10" step="1e-13" value="6.67430e-11" style="width:150px;">
       </label>
   </div>
-  
   <div id="globalActions">
       <button onclick="pauseSimulation()" title="Pausar">⏸</button>
       <button onclick="resumeSimulation()" title="Reanudar">▶</button>
       <button onclick="resetSimulation()" title="Reiniciar">⟲</button>
       <button onclick="fitAllPlanets()" title="Ver todo">🌐</button>
   </div>
-  
   <div id="controls">
       <h2>Control del Sistema Solar</h2>
-      
       <div class="control-group">
           <h2>Control del Sol</h2>
           <label><span class="fieldName">Radio del Sol (km):</span>
@@ -254,12 +248,10 @@
           </label>
           <button onclick="updateSunProperties()">Actualizar Sol</button>
       </div>
-      
       <div class="control-group">
           <h2>Control de Planetas</h2>
           <div id="planetControls"></div>
       </div>
-      
       <div class="add-planet">
           <h2>Agregar Planeta</h2>
           <label><span class="fieldName">Nombre:</span>
@@ -283,15 +275,11 @@
           <button onclick="addPlanet()">Agregar Planeta</button>
       </div>
   </div>
-  
-  <!-- Ventana única de información a la derecha -->
   <div id="infoWindow">
       <button class="closeBtn" onclick="closeInfoWindow()">X</button>
       <div id="infoContent"></div>
   </div>
-  
   <div id="planetInfo"></div>
-  
   <script>
       // Texturas para planetas conocidos
       const planetTextures = {
@@ -311,16 +299,16 @@
           "4k_eris_fictional.jpg"
       ];
       
-      // Datos base de planetas (se añade rotationSpeed para la auto-rotación)
+      // Datos base de planetas (rotationSpeed se define en radianes/segundo real)
       let planetDataGlobal = [
-          { name: "Mercurio", radius: 2439.7, density: 5427,  distance: 57.9e6,  inclination: 7,    longitude: 0, rotationSpeed: 0.00005 },
-          { name: "Venus",    radius: 6051.8, density: 5243,  distance: 108.2e6, inclination: 3.4,  longitude: 45, rotationSpeed: 0.00003 },
-          { name: "Tierra",   radius: 6371,   density: 5514,  distance: 149.6e6, inclination: 0,    longitude: 90, rotationSpeed: 7.27e-5 },
-          { name: "Marte",    radius: 3389.5, density: 3933,  distance: 227.9e6, inclination: 1.85, longitude: 135, rotationSpeed: 7e-5 },
-          { name: "Júpiter",  radius: 69911,  density: 1326,  distance: 778.5e6, inclination: 1.304, longitude: 210, rotationSpeed: 2.9e-5 },
-          { name: "Saturno",  radius: 58232,  density: 687,   distance: 1.433e9, inclination: 2.485, longitude: 250, rotationSpeed: 2.3e-5 },
-          { name: "Urano",    radius: 25362,  density: 1271,  distance: 2.872e9, inclination: 0.773, longitude: 80, rotationSpeed: 1.4e-5 },
-          { name: "Neptuno",  radius: 24622,  density: 1638,  distance: 4.495e9, inclination: 1.77,  longitude: 300, rotationSpeed: 1.4e-5 }
+          { name: "Mercurio", radius: 2439.7, density: 5427,  distance: 57.9e6,  inclination: 7,    longitude: 0,   rotationSpeed: 2*Math.PI/1407.6 },
+          { name: "Venus",    radius: 6051.8, density: 5243,  distance: 108.2e6, inclination: 3.4,  longitude: 45,  rotationSpeed: 2*Math.PI/5832.5 },
+          { name: "Tierra",   radius: 6371,   density: 5514,  distance: 149.6e6, inclination: 0,    longitude: 90,  rotationSpeed: 2*Math.PI/86400 },
+          { name: "Marte",    radius: 3389.5, density: 3933,  distance: 227.9e6, inclination: 1.85, longitude: 135, rotationSpeed: 2*Math.PI/88642 },
+          { name: "Júpiter",  radius: 69911,  density: 1326,  distance: 778.5e6, inclination: 1.304, longitude: 210, rotationSpeed: 2*Math.PI/35730 },
+          { name: "Saturno",  radius: 58232,  density: 687,   distance: 1.433e9, inclination: 2.485, longitude: 250, rotationSpeed: 2*Math.PI/37800 },
+          { name: "Urano",    radius: 25362,  density: 1271,  distance: 2.872e9, inclination: 0.773, longitude: 80,  rotationSpeed: 2*Math.PI/62000 },
+          { name: "Neptuno",  radius: 24622,  density: 1638,  distance: 4.495e9, inclination: 1.77,  longitude: 300, rotationSpeed: 2*Math.PI/57996 }
       ];
       let defaultPlanetData = JSON.parse(JSON.stringify(planetDataGlobal));
       
@@ -336,6 +324,9 @@
       const sizeScale = 1000;
       const sunSizeScale = 5;
       
+      // Usamos un THREE.Clock para medir el tiempo real entre frames
+      let clock = new THREE.Clock();
+      
       function calcularMasa(radioKm, densidad) {
           let radioM = radioKm * 1000;
           return (4/3) * Math.PI * Math.pow(radioM, 3) * densidad;
@@ -343,7 +334,6 @@
       
       function init() {
           scene = new THREE.Scene();
-          // Se asigna la textura de galaxias directamente al fondo
           const textureLoader = new THREE.TextureLoader();
           scene.background = textureLoader.load('textures/galaxy_starfield.png');
   
@@ -363,7 +353,7 @@
           controls.minDistance = 10;
           controls.addEventListener('change', function() {
               if(focusedPlanet) {
-                  focusedPlanet.cameraOffset.copy(camera.position).sub(focusedPlanet.mesh.position);
+                  controls.target.copy(focusedPlanet.mesh.position);
               }
           });
   
@@ -378,7 +368,6 @@
           createSolarSystem();
           animate();
   
-          // Al hacer clic se actúa como si se pulsara el icono de "foco"
           renderer.domElement.addEventListener('click', onDocumentMouseDown, false);
       }
       
@@ -441,12 +430,12 @@
           const textureLoader = new THREE.TextureLoader();
           
           if(data.name === "Tierra") {
-              // Shader que muestra la textura diurna en la mitad que mira al sol y nocturna en la opuesta.
+              // Shader para la Tierra: muestra textura diurna en la mitad que mira al sol y nocturna en la opuesta.
               let dayTexture = textureLoader.load('textures/8k_earth_daymap.jpg');
               dayTexture.format = THREE.RGBFormat;
               let nightTexture = textureLoader.load('textures/8k_earth_nightmap.jpg');
               nightTexture.format = THREE.RGBFormat;
-              // Inicializamos lightDirection calculándola en el espacio local usando la posición inicial
+              // Dirección inicial: desde la Tierra hacia el sol (en espacio local)
               let localLightDir = new THREE.Vector3().subVectors(sun.position, pos).normalize();
               let earthUniforms = {
                   mapDay: { value: dayTexture },
@@ -495,7 +484,6 @@
               planet = new THREE.Mesh(geometry, material);
               planet.name = data.name;
           } else {
-              // Para nuevos planetas, asigna aleatoriamente una de las texturas nuevas
               let randomIndex = Math.floor(Math.random() * randomTextures.length);
               let tex = textureLoader.load('textures/' + randomTextures[randomIndex]);
               tex.format = THREE.RGBFormat;
@@ -697,17 +685,11 @@
           let velDir = new THREE.Vector3().crossVectors(normalVec, pos).normalize();
           planetObj.velocity = velDir.multiplyScalar(vOrbital / distanceScale);
   
-          // Auto-rotación: se incrementa la rotación en función de rotationSpeed
-          if (planetObj.data.rotationSpeed !== undefined) {
-              planetObj.mesh.rotation.y += planetObj.data.rotationSpeed;
-          }
-  
+          updatePlanetControlsUI();
           planetObj.initialPosition.copy(planetObj.mesh.position);
           planetObj.initialVelocity.copy(planetObj.velocity);
           planetObj.trail.points = [];
           planetObj.trail.geometry.setFromPoints([]);
-  
-          updatePlanetControlsUI();
       }
       
       function removePlanet(index) {
@@ -761,7 +743,6 @@
           if (intersects.length > 0) {
               let clickedMesh = intersects[0].object;
               let index = planets.findIndex(p => p.mesh === clickedMesh);
-              // Si ya está enfocado, no se vuelve a enfocar para permitir rotación libre
               if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
                   return;
@@ -822,17 +803,15 @@
           document.getElementById("infoWindow").style.display = "none";
       }
       
-      // La función focusOnPlanet se usa también desde el panel de controles
+      // Al hacer foco en un planeta, sólo actualizamos el centro de rotación
       function focusOnPlanet(index) {
           focusedPlanet = planets[index];
           if(!focusedPlanet || !focusedPlanet.mesh) return;
-          let visualRadius = focusedPlanet.mesh.geometry.parameters.radius * focusedPlanet.mesh.scale.x;
-          let offset = new THREE.Vector3(0, visualRadius, visualRadius * 3);
-          focusedPlanet.cameraOffset = offset;
           controls.target.copy(focusedPlanet.mesh.position);
       }
       
-      function updatePlanets() {
+      // updatePlanets utiliza delta real (segundos entre frames). dt para órbitas se define como delta * timeScale * 86400.
+      function updatePlanets(delta) {
           if (paused) return;
           let ts = document.getElementById("timeScale").value;
           timeScale = parseFloat(ts);
@@ -840,7 +819,8 @@
   
           G = parseFloat(document.getElementById("gravitationalConstant").value);
   
-          let dt = 86400 * timeScale;
+          // dt para la dinámica orbital (simulación de órbitas): escalamos en segundos de simulación
+          let dt = delta * timeScale * 86400;
           
           planets.forEach((p, index) => {
               if(!p || !p.mesh) return;
@@ -869,26 +849,26 @@
               p.trail.points.push(p.mesh.position.clone());
               if (p.trail.points.length > 1000) p.trail.points.shift();
               p.trail.geometry.setFromPoints(p.trail.points);
+          });
   
-              // Auto-rotación: se incrementa la rotación en función de rotationSpeed
+          // Auto-rotación: se actualiza usando delta real y la velocidad de rotación (en rad/s)
+          planets.forEach(p => {
               if(p.data.rotationSpeed !== undefined) {
-                  p.mesh.rotation.y += p.data.rotationSpeed;
+                  p.mesh.rotation.y += p.data.rotationSpeed * delta * timeScale;
               }
           });
   
-          // Actualizar la dirección de la luz para la Tierra en su espacio local
+          // Actualizamos la dirección de la luz para la Tierra: convertimos la dirección (del sol a la Tierra) al espacio local
           planets.forEach(p => {
               if(p && p.mesh && p.mesh.name === "Tierra" && p.mesh.material.uniforms) {
                   let worldLightDir = new THREE.Vector3().subVectors(sun.position, p.mesh.position).normalize();
-                  // Convertir la dirección de luz de mundo a local usando el quaternion inverso del mesh
                   let localLightDir = worldLightDir.clone().applyQuaternion(p.mesh.quaternion.clone().invert());
                   p.mesh.material.uniforms.lightDirection.value = localLightDir;
               }
           });
   
-          if(focusedPlanet && focusedPlanet.mesh && focusedPlanet.cameraOffset) {
+          if(focusedPlanet && focusedPlanet.mesh) {
               controls.target.copy(focusedPlanet.mesh.position);
-              camera.position.copy(focusedPlanet.mesh.position).add(focusedPlanet.cameraOffset);
           }
       }
       
@@ -983,7 +963,6 @@
           if (intersects.length > 0) {
               let clickedMesh = intersects[0].object;
               let index = planets.findIndex(p => p.mesh === clickedMesh);
-              // Si ya está enfocado, no se vuelve a enfocar (para permitir rotación libre)
               if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
                   return;
@@ -1006,9 +985,231 @@
           }
       }
       
+      // La infoWindow se actualiza cada 1000 ms
+      setInterval(() => {
+          if (focusedPlanet && focusedPlanet.mesh) {
+              updateFocusedInfoWindow();
+          }
+      }, 1000);
+      
+      function updateFocusedInfoWindow() {
+          let infoDiv = document.getElementById("infoWindow");
+          if (!focusedPlanet || !focusedPlanet.mesh) {
+              infoDiv.style.display = "none";
+              return;
+          }
+          infoDiv.style.display = "block";
+          let mesh = focusedPlanet.mesh;
+          let distanceReal = ((mesh.position.length() * distanceScale) / 1000).toFixed(2);
+          let radiusReal = mesh.radiusKm.toFixed(2);
+          let container = planets.find(p => p.mesh === mesh);
+          let rotationSpeed = container && container.data.rotationSpeed !== undefined ? container.data.rotationSpeed.toExponential(2) : "N/A";
+          let inclination = container ? container.data.inclination.toFixed(2) : "N/A";
+          let velocityReal = container ? (container.velocity.length() * distanceScale / 1000).toFixed(2) : "N/A";
+          infoDiv.innerHTML = `
+             <button class="closeBtn" onclick="closeInfoWindow()">X</button>
+             <h3>${mesh.name}</h3>
+             <p>Masa: ${mesh.mass.toExponential(2)} kg</p>
+             <p>Radio: ${radiusReal} km</p>
+             <p>Densidad: ${mesh.density ? mesh.density.toFixed(0) : "N/A"} kg/m³</p>
+             <p>Distancia al Sol: ${distanceReal} km</p>
+             <p>Velocidad orbital: ${velocityReal} km/s</p>
+             <p>Inclinación: ${inclination} °</p>
+             <p>Rotación: ${rotationSpeed} rad/s</p>
+          `;
+      }
+      
+      function closeInfoWindow() {
+          document.getElementById("infoWindow").style.display = "none";
+      }
+      
+      // Al hacer foco en un planeta, actualizamos solo el centro de rotación (sin mover la cámara)
+      function focusOnPlanet(index) {
+          focusedPlanet = planets[index];
+          if(!focusedPlanet || !focusedPlanet.mesh) return;
+          controls.target.copy(focusedPlanet.mesh.position);
+      }
+      
+      // updatePlanets usa delta (segundos reales) y calcula dt para órbitas en segundos simulados (delta * timeScale * 86400)
+      function updatePlanets(delta) {
+          if (paused) return;
+          let ts = document.getElementById("timeScale").value;
+          timeScale = parseFloat(ts);
+          document.getElementById("timeScaleValue").innerText = timeScale;
+  
+          G = parseFloat(document.getElementById("gravitationalConstant").value);
+  
+          // dt para las órbitas: delta * timeScale * 86400 (para simular el paso de un día real)
+          let dt = delta * timeScale * 86400;
+          
+          planets.forEach((p, index) => {
+              if(!p || !p.mesh) return;
+              let totalForce = new THREE.Vector3(0, 0, 0);
+  
+              let sunDirection = new THREE.Vector3().subVectors(sun.position, p.mesh.position);
+              let sunDistance = sunDirection.length() * distanceScale;
+              let sunForce = sunDirection.normalize().multiplyScalar(G * sun.mass * p.mesh.mass / (sunDistance * sunDistance));
+              totalForce.add(sunForce);
+  
+              planets.forEach((otherP, otherIndex) => {
+                  if (index !== otherIndex && otherP && otherP.mesh) {
+                      let direction = new THREE.Vector3().subVectors(otherP.mesh.position, p.mesh.position);
+                      let distance = direction.length() * distanceScale;
+                      let force = direction.normalize().multiplyScalar(G * otherP.mesh.mass * p.mesh.mass / (distance * distance));
+                      totalForce.add(force);
+                  }
+              });
+  
+              let acceleration = totalForce.divideScalar(p.mesh.mass);
+              let accelerationVisual = acceleration.divideScalar(distanceScale);
+  
+              p.velocity.add(accelerationVisual.multiplyScalar(dt));
+              p.mesh.position.add(p.velocity.clone().multiplyScalar(dt));
+  
+              p.trail.points.push(p.mesh.position.clone());
+              if (p.trail.points.length > 1000) p.trail.points.shift();
+              p.trail.geometry.setFromPoints(p.trail.points);
+          });
+  
+          // Auto-rotación: se actualiza usando delta real * timeScale para cada planeta
+          planets.forEach(p => {
+              if(p.data.rotationSpeed !== undefined) {
+                  p.mesh.rotation.y += p.data.rotationSpeed * delta * timeScale;
+              }
+          });
+  
+          // Actualizamos la dirección de la luz para la Tierra (en espacio local)
+          planets.forEach(p => {
+              if(p && p.mesh && p.mesh.name === "Tierra" && p.mesh.material.uniforms) {
+                  let worldLightDir = new THREE.Vector3().subVectors(sun.position, p.mesh.position).normalize();
+                  let localLightDir = worldLightDir.clone().applyQuaternion(p.mesh.quaternion.clone().invert());
+                  p.mesh.material.uniforms.lightDirection.value = localLightDir;
+              }
+          });
+  
+          if(focusedPlanet && focusedPlanet.mesh) {
+              controls.target.copy(focusedPlanet.mesh.position);
+          }
+      }
+      
+      function fitAllPlanets() {
+          if (planets.length === 0) return;
+          let maxDistance = 0;
+          planets.forEach(p => {
+              if(p && p.mesh) {
+                  let d = p.mesh.position.length();
+                  if (d > maxDistance) maxDistance = d;
+              }
+          });
+          let height = maxDistance * 1.5;
+          camera.far = height * 4;
+          camera.updateProjectionMatrix();
+  
+          new TWEEN.Tween(camera.position)
+              .to({ x: 0, y: height, z: height }, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
+          new TWEEN.Tween(controls.target)
+              .to({ x: 0, y: 0, z: 0 }, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
+          viewMode = "cenital";
+      }
+      
+      function resetSimulation() {
+          planets.forEach((p, index) => {
+              if(p && p.mesh) {
+                  p.mesh.position.copy(p.initialPosition);
+                  p.velocity.copy(p.initialVelocity);
+                  p.trail.points = [];
+                  p.trail.geometry.setFromPoints([]);
+              }
+          });
+          focusedPlanet = null;
+          if (viewMode !== "cenital") {
+              resetCamera();
+          }
+          closeInfoWindow();
+      }
+      
+      function resetCamera() {
+          new TWEEN.Tween(camera.position)
+              .to({ x: 0, y: 150, z: 300 }, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
+          new TWEEN.Tween(controls.target)
+              .to({ x: 0, y: 0, z: 0 }, 1000)
+              .easing(TWEEN.Easing.Cubic.InOut)
+              .start();
+          viewMode = "normal";
+      }
+      
+      function resetDefaultsPlanet(index) {
+          let defaultData = defaultPlanetData[index];
+          let p = planets[index];
+          if(!p || !p.mesh) return;
+          p.data.radius = defaultData.radius;
+          p.data.density = defaultData.density;
+          p.data.distance = defaultData.distance;
+          p.data.inclination = defaultData.inclination;
+          p.data.longitude = defaultData.longitude;
+          planetDataGlobal[index] = Object.assign({}, defaultData);
+          document.getElementById(`radius${index}`).value = defaultData.radius;
+          document.getElementById(`density${index}`).value = defaultData.density;
+          document.getElementById(`distance${index}`).value = defaultData.distance;
+          document.getElementById(`inclination${index}`).value = defaultData.inclination;
+          document.getElementById(`longitude${index}`).value = defaultData.longitude;
+          updatePlanetProperties(index);
+          p.initialPosition.copy(p.mesh.position);
+          p.initialVelocity.copy(p.velocity);
+      }
+      
+      function onWindowResize() {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+      
+      function onDocumentMouseDown(event) {
+          event.preventDefault();
+          let mouse = new THREE.Vector2();
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  
+          let raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(mouse, camera);
+  
+          let intersects = raycaster.intersectObjects(planets.map(p => p.mesh));
+          if (intersects.length > 0) {
+              let clickedMesh = intersects[0].object;
+              let index = planets.findIndex(p => p.mesh === clickedMesh);
+              if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
+                  updateFocusedInfoWindow();
+                  return;
+              }
+              if(index >= 0) {
+                  focusOnPlanet(index);
+                  updateFocusedInfoWindow();
+              }
+          } else {
+              closeInfoWindow();
+          }
+      }
+      
+      function onKeyDown(event) {
+          if (event.key === "Escape") {
+              focusedPlanet = null;
+              viewMode = "normal";
+              resetCamera();
+              closeInfoWindow();
+          }
+      }
+      
+      // Usamos el clock para obtener delta en segundos reales entre frames
       function animate() {
           requestAnimationFrame(animate);
-          updatePlanets();
+          let delta = clock.getDelta();
+          updatePlanets(delta);
           TWEEN.update();
           controls.update();
           if (sun) {
