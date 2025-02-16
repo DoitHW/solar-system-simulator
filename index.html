@@ -401,7 +401,7 @@
           let sunGeometry = new THREE.SphereGeometry(visualSunRadius, 64, 64);
           // Cargar textura del Sol desde una URL pública
           const textureLoader = new THREE.TextureLoader();
-          let sunTexture = textureLoader.load('textures/sun.jpg');
+          let sunTexture = textureLoader.load('textures/sun.png');
           let sunMaterial = new THREE.MeshPhongMaterial({
               map: sunTexture,
               emissive: 0xffffff,
