@@ -293,7 +293,7 @@
   <div id="planetInfo"></div>
   
   <script>
-      // Se han añadido nuevos datos: rotationSpeed (en radianes por frame) para cada planeta conocido.
+      // Texturas para planetas conocidos
       const planetTextures = {
           "Mercurio": "8k_mercury.jpg",
           "Venus": "8k_venus_surface.jpg",
@@ -311,7 +311,7 @@
           "4k_eris_fictional.jpg"
       ];
       
-      // Datos base de planetas (se añade rotationSpeed, en rad/s aproximado, para la simulación de auto-rotación)
+      // Datos base de planetas (se añade rotationSpeed para la auto-rotación)
       let planetDataGlobal = [
           { name: "Mercurio", radius: 2439.7, density: 5427,  distance: 57.9e6,  inclination: 7,    longitude: 0, rotationSpeed: 0.00005 },
           { name: "Venus",    radius: 6051.8, density: 5243,  distance: 108.2e6, inclination: 3.4,  longitude: 45, rotationSpeed: 0.00003 },
@@ -441,15 +441,17 @@
           const textureLoader = new THREE.TextureLoader();
           
           if(data.name === "Tierra") {
-              // Modificación en el shader para que muestre día en una mitad y noche en la otra
+              // Shader que muestra la textura diurna en la mitad que mira al sol y nocturna en la opuesta.
               let dayTexture = textureLoader.load('textures/8k_earth_daymap.jpg');
               dayTexture.format = THREE.RGBFormat;
               let nightTexture = textureLoader.load('textures/8k_earth_nightmap.jpg');
               nightTexture.format = THREE.RGBFormat;
+              // Inicializamos lightDirection calculándola en el espacio local usando la posición inicial
+              let localLightDir = new THREE.Vector3().subVectors(sun.position, pos).normalize();
               let earthUniforms = {
                   mapDay: { value: dayTexture },
                   mapNight: { value: nightTexture },
-                  lightDirection: { value: new THREE.Vector3(0,0,0) }
+                  lightDirection: { value: localLightDir }
               };
               let earthMaterial = new THREE.ShaderMaterial({
                   uniforms: earthUniforms,
@@ -458,7 +460,7 @@
                       varying vec3 vNormal;
                       void main() {
                           vUv = uv;
-                          vNormal = normalMatrix * normal;
+                          vNormal = normal;
                           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                       }
                   `,
@@ -469,9 +471,7 @@
                       varying vec2 vUv;
                       varying vec3 vNormal;
                       void main() {
-                          // Se calcula el dot product sin clamping para obtener negativo y positivo
-                          float factor = dot(normalize(vNormal), lightDirection);
-                          // Si factor es >= 0 se muestra la textura de día, si es negativo la de noche
+                          float factor = dot(normalize(vNormal), normalize(lightDirection));
                           float stepVal = step(0.0, factor);
                           vec4 color = mix(texture2D(mapNight, vUv), texture2D(mapDay, vUv), stepVal);
                           gl_FragColor = color;
@@ -697,7 +697,7 @@
           let velDir = new THREE.Vector3().crossVectors(normalVec, pos).normalize();
           planetObj.velocity = velDir.multiplyScalar(vOrbital / distanceScale);
   
-          // Actualiza la auto-rotación (si está definido rotationSpeed)
+          // Auto-rotación: se incrementa la rotación en función de rotationSpeed
           if (planetObj.data.rotationSpeed !== undefined) {
               planetObj.mesh.rotation.y += planetObj.data.rotationSpeed;
           }
@@ -747,7 +747,7 @@
           sun.geometry = new THREE.SphereGeometry(visualSunRadius, 64, 64);
       }
       
-      // Al hacer clic sobre un planeta, se actúa como si se pulsara el icono de "foco"
+      // Al hacer clic sobre un planeta se actúa como si se pulsara el icono de "foco"
       function onDocumentMouseDown(event) {
           event.preventDefault();
           let mouse = new THREE.Vector2();
@@ -761,8 +761,8 @@
           if (intersects.length > 0) {
               let clickedMesh = intersects[0].object;
               let index = planets.findIndex(p => p.mesh === clickedMesh);
-              // Si ya está enfocado, no se vuelve a re-enfocar (para permitir rotación libre)
-              if (focusedPlanet && focusedPlanet.mesh === clickedMesh) {
+              // Si ya está enfocado, no se vuelve a enfocar para permitir rotación libre
+              if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
                   return;
               }
@@ -801,7 +801,6 @@
           let mesh = focusedPlanet.mesh;
           let distanceReal = ((mesh.position.length() * distanceScale) / 1000).toFixed(2);
           let radiusReal = mesh.radiusKm.toFixed(2);
-          // Se obtiene la inclinación y la velocidad de rotación desde los datos del planeta
           let container = planets.find(p => p.mesh === mesh);
           let rotationSpeed = container && container.data.rotationSpeed !== undefined ? container.data.rotationSpeed.toExponential(2) : "N/A";
           let inclination = container ? container.data.inclination.toFixed(2) : "N/A";
@@ -877,16 +876,20 @@
               }
           });
   
+          // Actualizar la dirección de la luz para la Tierra en su espacio local
+          planets.forEach(p => {
+              if(p && p.mesh && p.mesh.name === "Tierra" && p.mesh.material.uniforms) {
+                  let worldLightDir = new THREE.Vector3().subVectors(sun.position, p.mesh.position).normalize();
+                  // Convertir la dirección de luz de mundo a local usando el quaternion inverso del mesh
+                  let localLightDir = worldLightDir.clone().applyQuaternion(p.mesh.quaternion.clone().invert());
+                  p.mesh.material.uniforms.lightDirection.value = localLightDir;
+              }
+          });
+  
           if(focusedPlanet && focusedPlanet.mesh && focusedPlanet.cameraOffset) {
               controls.target.copy(focusedPlanet.mesh.position);
               camera.position.copy(focusedPlanet.mesh.position).add(focusedPlanet.cameraOffset);
           }
-  
-          planets.forEach(p => {
-              if(p && p.mesh && p.mesh.name === "Tierra" && p.mesh.material.uniforms) {
-                  p.mesh.material.uniforms.lightDirection.value = new THREE.Vector3().copy(p.mesh.position).negate().normalize();
-              }
-          });
       }
       
       function fitAllPlanets() {
@@ -980,7 +983,7 @@
           if (intersects.length > 0) {
               let clickedMesh = intersects[0].object;
               let index = planets.findIndex(p => p.mesh === clickedMesh);
-              // Si ya está enfocado, no se vuelve a enfocar
+              // Si ya está enfocado, no se vuelve a enfocar (para permitir rotación libre)
               if(focusedPlanet && focusedPlanet.mesh === clickedMesh) {
                   updateFocusedInfoWindow();
                   return;
@@ -995,7 +998,7 @@
       }
       
       function onKeyDown(event) {
-          if (event.key === "Escape") {fav
+          if (event.key === "Escape") {
               focusedPlanet = null;
               viewMode = "normal";
               resetCamera();
