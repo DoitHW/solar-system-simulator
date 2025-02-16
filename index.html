@@ -25,7 +25,7 @@
           font-family: 'Orbitron', sans-serif;
           color: #fff;
       }
-      /* Contenedor global en la esquina superior izquierda para el toggle */
+      /* Contenedor global en la esquina superior izquierda para el toggle del menú */
       #globalControls {
           position: fixed;
           top: 10px;
@@ -399,17 +399,24 @@
           let visualSunRadius = (sunRadiusKm * 1000 / distanceScale) * sunSizeScale;
   
           let sunGeometry = new THREE.SphereGeometry(visualSunRadius, 64, 64);
+          // Cargar textura del Sol desde una URL pública
+          const textureLoader = new THREE.TextureLoader();
+          let sunTexture = textureLoader.load('textures/sun.jpg');
           let sunMaterial = new THREE.MeshPhongMaterial({
-              color: 0xffff00,
-              emissive: 0xffaa00,
-              emissiveIntensity: 0.5,
-              shininess: 100
+              map: sunTexture,
+              emissive: 0xffffff,
+              emissiveMap: sunTexture,
+              emissiveIntensity: 1.0,
+              shininess: 10
           });
           sun = new THREE.Mesh(sunGeometry, sunMaterial);
           sun.position.set(0, 0, 0);
           sun.mass = sunMass;
           sun.radiusKm = sunRadiusKm;
           sun.density = sunDensity;
+          // Añadir luz puntual al Sol para que su luz afecte a los planetas
+          let sunLight = new THREE.PointLight(0xffffff, 2, 1000);
+          sun.add(sunLight);
           scene.add(sun);
   
           planetDataGlobal.forEach((data, index) => {
@@ -893,6 +900,10 @@
           updatePlanets();
           TWEEN.update();
           controls.update();
+          // Animar el Sol (rotación lenta)
+          if (sun) {
+              sun.rotation.y += 0.001;
+          }
           renderer.render(scene, camera);
       }
       
